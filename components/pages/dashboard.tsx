@@ -1,28 +1,56 @@
-"use client"
+'use client'
 
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, Clock, Zap, TrendingUp } from "lucide-react"
+import { CheckCircle2, Clock, Zap, TrendingUp, X } from "lucide-react"
+import { useState, useMemo } from "react"
 
-export default function Dashboard() {
-  const dailyTasks = [
+interface Goal {
+  id: number;
+  title: string;
+  progress: number;
+  daysLeft: number;
+}
+
+export default function Dashboard({ 
+  onNavigate, 
+  goals, 
+  onDeleteGoal 
+}: { 
+  onNavigate: (page: string) => void; 
+  goals: Goal[];
+  onDeleteGoal: (id: number) => void;
+}) {
+  const [dailyTasks, setDailyTasks] = useState([
     { id: 1, title: "Complete Calculus Chapter 3", duration: "45 min", completed: true },
     { id: 2, title: "Review Biology Notes", duration: "30 min", completed: true },
     { id: 3, title: "Practice Physics Problems", duration: "60 min", completed: false },
     { id: 4, title: "Read History Article", duration: "25 min", completed: false },
-  ]
+  ])
 
-  const goals = [
-    { id: 1, title: "Master Calculus", progress: 65, daysLeft: 12 },
-    { id: 2, title: "Biology Fundamentals", progress: 42, daysLeft: 18 },
-    { id: 3, title: "Physics Concepts", progress: 78, daysLeft: 8 },
-  ]
+  const sortedTasks = useMemo(() => {
+    return [...dailyTasks].sort((a, b) =>
+      a.completed === b.completed ? 0 : a.completed ? 1 : -1
+    )
+  }, [dailyTasks])
 
   const completedToday = dailyTasks.filter((t) => t.completed).length
   const totalTime = dailyTasks.reduce((acc, t) => {
     const minutes = Number.parseInt(t.duration)
     return acc + minutes
   }, 0)
+
+  const overallProgress = Math.round(
+    goals.reduce((acc, goal) => acc + goal.progress, 0) / goals.length
+  )
+
+  const handleTaskCompletion = (id: number) => {
+    setDailyTasks(
+      dailyTasks.map((task) =>
+        task.id === id ? { ...task, completed: !task.completed } : task
+      )
+    )
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -70,7 +98,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground mb-1">Overall Progress</p>
-              <p className="text-3xl font-bold text-primary">62%</p>
+              <p className="text-3xl font-bold text-primary">{overallProgress}%</p>
             </div>
             <TrendingUp className="text-primary" size={32} />
           </div>
@@ -83,19 +111,24 @@ export default function Dashboard() {
           <Card className="p-6 bg-card border border-border">
             <h2 className="text-xl font-bold text-foreground mb-4">Today's Tasks</h2>
             <div className="space-y-3">
-              {dailyTasks.map((task) => (
+              {sortedTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                  className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                  onClick={() => onNavigate("learning")}
                 >
                   <input
                     type="checkbox"
-                    defaultChecked={task.completed}
+                    checked={task.completed}
+                    onChange={() => handleTaskCompletion(task.id)}
+                    onClick={(e) => e.stopPropagation()}
                     className="w-5 h-5 rounded border-2 border-primary cursor-pointer"
                   />
                   <div className="flex-1">
                     <p
-                      className={`font-medium ${task.completed ? "line-through text-muted-foreground" : "text-foreground"}`}
+                      className={`font-medium ${
+                        task.completed ? "line-through text-muted-foreground" : "text-foreground"
+                      }`}
                     >
                       {task.title}
                     </p>
@@ -115,8 +148,15 @@ export default function Dashboard() {
               {goals.map((goal) => (
                 <div key={goal.id} className="space-y-2">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-medium text-foreground text-sm">{goal.title}</h3>
-                    <span className="text-xs text-muted-foreground">{goal.daysLeft}d left</span>
+                    <h3 className="font-medium text-foreground text-sm cursor-pointer" onClick={() => onNavigate("learning")}>
+                      {goal.title}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{goal.daysLeft}d left</span>
+                        <button onClick={() => onDeleteGoal(goal.id)} className="text-muted-foreground hover:text-foreground">
+                            <X size={16} />
+                        </button>
+                    </div>
                   </div>
                   <Progress value={goal.progress} className="h-2" />
                   <p className="text-xs text-muted-foreground">{goal.progress}% complete</p>

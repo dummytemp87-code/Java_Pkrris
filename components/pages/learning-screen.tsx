@@ -1,36 +1,59 @@
-"use client"
+'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, MessageSquare, FileText, BookMarked } from "lucide-react"
+import { CheckCircle2, MessageSquare, FileText, BookMarked, Save } from "lucide-react"
 
-export default function LearningScreen() {
-  const [isCompleted, setIsCompleted] = useState(false)
-  const [notes, setNotes] = useState("")
-  const [messages, setMessages] = useState([
-    { id: 1, role: "tutor", text: "Hi! I'm your AI tutor. What would you like to learn about derivatives?" },
-  ])
-  const [inputMessage, setInputMessage] = useState("")
+interface LearningScreenProps {
+  onNavigate: (page: string) => void;
+  learningState: any;
+  setLearningState: (state: any) => void;
+}
+
+export default function LearningScreen({ onNavigate, learningState, setLearningState }: LearningScreenProps) {
+  const { isCompleted, notes, messages, inputMessage } = learningState;
+  const [saveStatus, setSaveStatus] = useState("idle"); // idle, saving, saved
+
+  const setState = (newState: any) => {
+    setLearningState({ ...learningState, ...newState });
+  };
 
   const sendMessage = () => {
     if (inputMessage.trim()) {
-      setMessages([...messages, { id: messages.length + 1, role: "user", text: inputMessage }])
-      setInputMessage("")
-      // Simulate tutor response
+      const newMessages = [...messages, { id: messages.length + 1, role: "user", text: inputMessage }];
+      setState({ messages: newMessages, inputMessage: "" });
+      
       setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
+        setState({ messages: [
+          ...newMessages,
           {
-            id: prev.length + 1,
+            id: newMessages.length + 1,
             role: "tutor",
             text: "Great question! The derivative measures how a function changes at a specific point...",
           },
-        ])
+        ]})
       }, 500)
     }
   }
+
+  const handleSaveNotes = async () => {
+    setSaveStatus("saving");
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus("idle"), 3000);
+  };
+
+  const handleDownloadNotes = () => {
+    const blob = new Blob([notes], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'notes.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
@@ -40,7 +63,7 @@ export default function LearningScreen() {
           <p className="text-muted-foreground">Calculus Fundamentals</p>
         </div>
         <Button
-          onClick={() => setIsCompleted(!isCompleted)}
+          onClick={() => setState({ isCompleted: !isCompleted })}
           className={`${isCompleted ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"} text-white`}
         >
           <CheckCircle2 size={20} className="mr-2" />
@@ -49,7 +72,6 @@ export default function LearningScreen() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs defaultValue="video" className="w-full">
             <TabsList className="grid w-full grid-cols-4 bg-muted">
@@ -61,21 +83,9 @@ export default function LearningScreen() {
 
             {/* Video Tab */}
             <TabsContent value="video" className="mt-4">
-              <Card className="p-6 bg-card border border-border">
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center mb-4">
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <div className="w-0 h-0 border-l-8 border-l-transparent border-r-0 border-t-5 border-t-transparent border-b-5 border-b-transparent ml-1" />
-                    </div>
-                    <p className="text-muted-foreground">Video Player</p>
-                    <p className="text-sm text-muted-foreground mt-1">12:45 / 15:30</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-foreground">Understanding the Power Rule</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Learn how to differentiate polynomial functions using the power rule
-                  </p>
+              <Card className="p-4 bg-card border border-border">
+                <div className="aspect-video bg-muted rounded-lg">
+                  {/* Placeholder for video player */}
                 </div>
               </Card>
             </TabsContent>
@@ -108,11 +118,25 @@ export default function LearningScreen() {
               <Card className="p-6 bg-card border border-border">
                 <textarea
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={(e) => setState({ notes: e.target.value })}
                   placeholder="Take notes here... Your notes will be saved automatically"
                   className="w-full h-64 px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
-                <Button className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90">Save Notes</Button>
+                <div className="mt-4 flex items-center gap-4">
+                  <Button 
+                    onClick={handleSaveNotes} 
+                    disabled={saveStatus === 'saving'}
+                    className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    <Save size={16} className="mr-2" />
+                    {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Notes'}
+                  </Button>
+                  {saveStatus === 'saved' && (
+                    <Button onClick={handleSaveNotes} variant="outline">
+                      Save Again
+                    </Button>
+                  )}
+                </div>
               </Card>
             </TabsContent>
 
@@ -120,7 +144,7 @@ export default function LearningScreen() {
             <TabsContent value="chat" className="mt-4">
               <Card className="p-6 bg-card border border-border flex flex-col h-96">
                 <div className="flex-1 overflow-y-auto mb-4 space-y-4">
-                  {messages.map((msg) => (
+                  {messages.map((msg: any) => (
                     <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-xs px-4 py-2 rounded-lg ${
@@ -136,7 +160,7 @@ export default function LearningScreen() {
                   <input
                     type="text"
                     value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
+                    onChange={(e) => setState({ inputMessage: e.target.value })}
                     onKeyPress={(e) => e.key === "Enter" && sendMessage()}
                     placeholder="Ask your tutor..."
                     className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
@@ -194,11 +218,11 @@ export default function LearningScreen() {
           <Card className="p-4 bg-card border border-border">
             <h3 className="font-semibold text-foreground mb-3">Quick Actions</h3>
             <div className="space-y-2">
-              <Button className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90 justify-start">
+              <Button onClick={handleDownloadNotes} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90 justify-start">
                 <FileText size={16} className="mr-2" />
                 Download Notes
               </Button>
-              <Button className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start">
+              <Button onClick={() => onNavigate('chat')} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start">
                 <MessageSquare size={16} className="mr-2" />
                 Ask Question
               </Button>

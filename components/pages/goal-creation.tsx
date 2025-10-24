@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import type React from "react"
 
@@ -7,7 +7,19 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Upload, Plus, X } from "lucide-react"
 
-export default function GoalCreation() {
+interface Goal {
+  id: number;
+  title: string;
+  progress: number;
+  daysLeft: number;
+}
+
+interface GoalCreationProps {
+  setGoals: React.Dispatch<React.SetStateAction<Goal[]>>;
+  onNavigate: (page: string) => void;
+}
+
+export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps) {
   const [goalTitle, setGoalTitle] = useState("")
   const [description, setDescription] = useState("")
   const [deadline, setDeadline] = useState("")
@@ -28,13 +40,21 @@ export default function GoalCreation() {
 
   const handleSyllabusUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      setSyllabus(e.target.files[0])
+      const file = e.target.files[0];
+      setSyllabus(file);
+      setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title
     }
   }
 
   const handleCreateGoal = () => {
-    console.log({ goalTitle, description, deadline, topics, syllabus })
-    alert("Goal created! (Demo)")
+    const newGoal: Goal = {
+      id: Date.now(),
+      title: goalTitle,
+      progress: 0,
+      daysLeft: deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
+    };
+    setGoals((prevGoals) => [...prevGoals, newGoal]);
+    onNavigate("dashboard");
   }
 
   return (
