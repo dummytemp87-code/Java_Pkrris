@@ -1,0 +1,7 @@
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\AiChatApplication.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\config\CorsConfig.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\controller\ChatController.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\dto\ChatReplyDto.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\dto\ChatRequestDto.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\dto\MessageDto.java
+C:\Users\Faster\Desktop\javaproject\Java_Pkrris\spring-backend\src\main\java\com\example\aichat\service\OpenAIService.java

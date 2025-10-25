@@ -1,0 +1,7 @@
+com\example\aichat\config\CorsConfig.class
+com\example\aichat\dto\MessageDto.class
+com\example\aichat\dto\ChatRequestDto.class
+com\example\aichat\dto\ChatReplyDto.class
+com\example\aichat\service\OpenAIService.class
+com\example\aichat\controller\ChatController.class
+com\example\aichat\AiChatApplication.class

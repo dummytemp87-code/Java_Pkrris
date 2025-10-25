@@ -1,9 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Send, Lightbulb } from "lucide-react"
+import { Send, Lightbulb, Loader2 } from "lucide-react"
 
 export default function AIChat() {
   const [messages, setMessages] = useState([
@@ -14,6 +16,7 @@ export default function AIChat() {
     },
   ])
   const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
 
   const suggestedQuestions = [
     "Explain the chain rule with examples",
@@ -22,21 +25,35 @@ export default function AIChat() {
     "Can you give me practice problems?",
   ]
 
-  const sendMessage = () => {
-    if (input.trim()) {
-      setMessages([...messages, { id: messages.length + 1, role: "user", text: input }])
-      setInput("")
-      // Simulate response
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: prev.length + 1,
-            role: "tutor",
-            text: "That's a great question! Let me break this down for you step by step...",
-          },
-        ])
-      }, 800)
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return
+    const userMsg = { id: messages.length + 1, role: "user", text: input }
+    setMessages([...messages, userMsg])
+    setInput("")
+    setLoading(true)
+    try {
+      const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL
+        ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
+        : "http://localhost:8080/api/ai-chat";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [...messages, userMsg] }),
+      })
+      if (!res.ok) throw new Error("Failed to get AI response")
+      const data = await res.json()
+      const reply = (data?.reply ?? "I couldn't generate a response.").toString()
+      setMessages((prev) => [
+        ...prev,
+        { id: prev.length + 1, role: "tutor", text: reply },
+      ])
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { id: prev.length + 1, role: "tutor", text: "Sorry, I had trouble answering that. Please try again." },
+      ])
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -59,7 +76,15 @@ export default function AIChat() {
                     : "bg-muted text-foreground border border-border"
                 }`}
               >
-                <p className="text-sm leading-relaxed">{msg.text}</p>
+                {msg.role === "tutor" ? (
+                  <div className="text-sm leading-relaxed">
+                    <ReactMarkdown className="markdown" remarkPlugins={[remarkGfm]}>
+                      {msg.text}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                )}
               </div>
             </div>
           ))}
@@ -74,9 +99,10 @@ export default function AIChat() {
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Type your question..."
             className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            disabled={loading}
           />
-          <Button onClick={sendMessage} className="bg-primary text-primary-foreground hover:bg-primary/90 px-6">
-            <Send size={20} />
+          <Button onClick={sendMessage} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90 px-6">
+            {loading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
           </Button>
         </div>
       </Card>
