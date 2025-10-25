@@ -15,11 +15,13 @@ interface Goal {
 export default function Dashboard({ 
   onNavigate, 
   goals, 
-  onDeleteGoal 
+  onDeleteGoal,
+  onSelectGoal,
 }: { 
   onNavigate: (page: string) => void; 
   goals: Goal[];
   onDeleteGoal: (id: number) => void;
+  onSelectGoal?: (goal: Goal) => void;
 }) {
   const [dailyTasks, setDailyTasks] = useState([
     { id: 1, title: "Complete Calculus Chapter 3", duration: "45 min", completed: true },
@@ -148,7 +150,7 @@ export default function Dashboard({
               {goals.map((goal) => (
                 <div key={goal.id} className="space-y-2">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-medium text-foreground text-sm cursor-pointer" onClick={() => onNavigate("learning")}>
+                    <h3 className="font-medium text-foreground text-sm cursor-pointer" onClick={() => onSelectGoal ? onSelectGoal(goal) : onNavigate("study-plan")}>
                       {goal.title}
                     </h3>
                     <div className="flex items-center gap-2">

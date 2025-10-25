@@ -46,15 +46,32 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
     }
   }
 
-  const handleCreateGoal = () => {
-    const newGoal: Goal = {
-      id: Date.now(),
-      title: goalTitle,
-      progress: 0,
-      daysLeft: deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
-    };
-    setGoals((prevGoals) => [...prevGoals, newGoal]);
-    onNavigate("dashboard");
+  const handleCreateGoal = async () => {
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    try {
+      const res = await fetch(`${base}/api/goals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          title: goalTitle,
+          description,
+          targetDate: deadline || null,
+        })
+      })
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data?.error || 'Failed to create goal');
+        return;
+      }
+      setGoals((prev) => [...prev, data]);
+      onNavigate("dashboard");
+    } catch (e) {
+      alert('Failed to create goal');
+    }
   }
 
   return (

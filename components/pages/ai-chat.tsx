@@ -35,17 +35,23 @@ export default function AIChat() {
       const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL
         ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
         : "http://localhost:8080/api/ai-chat";
+      const payloadMessages = [...messages, userMsg].map((m: any) => ({ role: m.role, text: m.text }))
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ messages: payloadMessages }),
       })
       if (!res.ok) throw new Error("Failed to get AI response")
       const data = await res.json()
       const reply = (data?.reply ?? "I couldn't generate a response.").toString()
+      const clean = reply.replace(/\$/g, "").replace(/\\[()\\[\\]]/g, "")
       setMessages((prev) => [
         ...prev,
-        { id: prev.length + 1, role: "tutor", text: reply },
+        { id: prev.length + 1, role: "tutor", text: clean },
       ])
     } catch (err) {
       setMessages((prev) => [
