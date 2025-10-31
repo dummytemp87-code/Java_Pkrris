@@ -26,7 +26,7 @@ public class ChatController {
         try {
             List<Map<String, String>> msgs = new ArrayList<>();
             String system = (req.getSystemPrompt() == null || req.getSystemPrompt().isBlank())
-                    ? "You are a friendly, student-focused AI tutor. Explain step-by-step, use simple language, add small examples, and keep responses concise unless asked for more detail."
+                    ? "You are a friendly, student-focused AI tutor. Write answers in clean Markdown (headings, lists, bold) with step-by-step clarity. Do NOT use LaTeX or $...$ or \\(...\\) or \\[...\\]. Use plain-text math: exponents with ^ (x^2), fractions as a/b, inline code for short expressions (like `x^2 + 1`). Keep responses concise unless asked for more detail and include small, relevant examples."
                     : req.getSystemPrompt();
             msgs.add(Map.of("role", "system", "content", system));
 

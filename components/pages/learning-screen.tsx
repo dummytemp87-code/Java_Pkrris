@@ -4,7 +4,9 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, MessageSquare, FileText, BookMarked, Save } from "lucide-react"
+import { CheckCircle2, MessageSquare, FileText, BookMarked, Save, Loader2 } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface LearningScreenProps {
   onNavigate: (page: string) => void;
@@ -13,28 +15,65 @@ interface LearningScreenProps {
 }
 
 export default function LearningScreen({ onNavigate, learningState, setLearningState }: LearningScreenProps) {
-  const { isCompleted, notes, messages, inputMessage } = learningState;
+  const { isCompleted, notes, messages, inputMessage, chatLoading } = learningState;
   const [saveStatus, setSaveStatus] = useState("idle"); // idle, saving, saved
 
   const setState = (newState: any) => {
     setLearningState({ ...learningState, ...newState });
   };
 
-  const sendMessage = () => {
+  const topic = "Power Rule & Chain Rule";
+
+  const sendMessage = async () => {
     if (inputMessage.trim()) {
       const newMessages = [...messages, { id: messages.length + 1, role: "user", text: inputMessage }];
-      setState({ messages: newMessages, inputMessage: "" });
-      
-      setTimeout(() => {
-        setState({ messages: [
-          ...newMessages,
-          {
-            id: newMessages.length + 1,
-            role: "tutor",
-            text: "Great question! The derivative measures how a function changes at a specific point...",
+      setState({ messages: newMessages, inputMessage: "", chatLoading: true });
+
+      try {
+        const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL
+          ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
+          : "http://localhost:8080/api/ai-chat";
+        const payloadMessages = newMessages.map((m: any) => ({ role: m.role, text: m.text }));
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        ]})
-      }, 500)
+          body: JSON.stringify({
+            messages: payloadMessages,
+            systemPrompt: `You are a friendly, student-focused AI tutor. Write answers in clean Markdown (headings, lists, bold) with step-by-step clarity. Do NOT use LaTeX or $...$ or \\(...\\) or \\[...\\]. Use plain-text math: exponents with ^ (x^2), fractions as a/b, and inline code for short expressions (like x^2 + 1). Stay strictly on the topic: ${topic}.`,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to get AI response");
+        const data = await res.json();
+        const reply = (data?.reply ?? "I couldn't generate a response.").toString();
+        const clean = reply.replace(/\$/g, "").replace(/\\[()\\[\\]]/g, "");
+        setState({
+          messages: [
+            ...newMessages,
+            {
+              id: newMessages.length + 1,
+              role: "tutor",
+              text: clean,
+            },
+          ],
+          chatLoading: false,
+        });
+      } catch (e) {
+        setState({
+          messages: [
+            ...newMessages,
+            {
+              id: newMessages.length + 1,
+              role: "tutor",
+              text: "Sorry, I had trouble answering that. Please try again.",
+            },
+          ],
+          chatLoading: false,
+        });
+      }
     }
   }
 
@@ -59,7 +98,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">Power Rule & Chain Rule</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-1">{topic}</h1>
           <p className="text-muted-foreground">Calculus Fundamentals</p>
         </div>
         <Button
@@ -151,7 +190,15 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                           msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                         }`}
                       >
-                        <p className="text-sm">{msg.text}</p>
+                        {msg.role === "tutor" ? (
+                          <div className="text-sm leading-relaxed">
+                            <ReactMarkdown className="markdown" remarkPlugins={[remarkGfm]}>
+                              {msg.text}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -161,11 +208,13 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setState({ inputMessage: e.target.value })}
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && !chatLoading && sendMessage()}
                     placeholder="Ask your tutor..."
                     className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    disabled={!!chatLoading}
                   />
-                  <Button onClick={sendMessage} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button onClick={sendMessage} disabled={!!chatLoading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    {chatLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
                     Send
                   </Button>
                 </div>
