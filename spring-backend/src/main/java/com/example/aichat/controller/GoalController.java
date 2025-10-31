@@ -6,6 +6,8 @@ import com.example.aichat.model.Goal;
 import com.example.aichat.model.User;
 import com.example.aichat.repo.GoalRepository;
 import com.example.aichat.repo.StudyPlanRepository;
+import com.example.aichat.repo.ArticleContentRepository;
+import com.example.aichat.repo.VideoContentRepository;
 import com.example.aichat.repo.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
@@ -28,11 +30,15 @@ public class GoalController {
     private final GoalRepository goalRepository;
     private final UserRepository userRepository;
     private final StudyPlanRepository studyPlanRepository;
+    private final ArticleContentRepository articleContentRepository;
+    private final VideoContentRepository videoContentRepository;
 
-    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository) {
+    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository) {
         this.goalRepository = goalRepository;
         this.userRepository = userRepository;
         this.studyPlanRepository = studyPlanRepository;
+        this.articleContentRepository = articleContentRepository;
+        this.videoContentRepository = videoContentRepository;
     }
 
     @GetMapping
@@ -92,6 +98,10 @@ public class GoalController {
             }
             // delete related study plan for this goal if any
             studyPlanRepository.deleteByUserAndGoalTitle(user, g.getTitle());
+            // delete related article content for this goal if any
+            articleContentRepository.deleteByUserAndGoalTitle(user, g.getTitle());
+            // delete related video content for this goal if any
+            videoContentRepository.deleteByUserAndGoalTitle(user, g.getTitle());
             goalRepository.delete(g);
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception ex) {

@@ -15,14 +15,89 @@ interface LearningScreenProps {
 }
 
 export default function LearningScreen({ onNavigate, learningState, setLearningState }: LearningScreenProps) {
-  const { isCompleted, notes, messages, inputMessage, chatLoading } = learningState;
+  const { isCompleted, notes, messages, inputMessage, chatLoading, selectedGoalTitle, selectedModule } = learningState;
   const [saveStatus, setSaveStatus] = useState("idle"); // idle, saving, saved
+  const [articleLoading, setArticleLoading] = useState(false)
+  const [articleError, setArticleError] = useState<string | null>(null)
+  const [articleContent, setArticleContent] = useState<string>("")
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const [video, setVideo] = useState<{ videoId: string; url: string; videoTitle?: string; channelTitle?: string } | null>(null)
 
   const setState = (newState: any) => {
     setLearningState({ ...learningState, ...newState });
   };
 
-  const topic = "Power Rule & Chain Rule";
+  const topic = selectedModule?.title || "Learning Module";
+
+  useEffect(() => {
+    if (!selectedGoalTitle || !selectedModule?.title) return;
+    let cancelled = false;
+    const run = async () => {
+      setArticleLoading(true);
+      setArticleError(null);
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(`${base}/api/articles/content`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            goalTitle: selectedGoalTitle,
+            moduleTitle: selectedModule.title,
+            moduleType: selectedModule.type,
+            moduleId: selectedModule.id,
+          })
+        })
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Failed to load article');
+        if (!cancelled) setArticleContent((data?.content ?? '').toString());
+      } catch (e: any) {
+        if (!cancelled) setArticleError(e?.message || 'Failed to load article');
+      } finally {
+        if (!cancelled) setArticleLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedGoalTitle, selectedModule?.title])
+
+  useEffect(() => {
+    if (!selectedGoalTitle || !selectedModule?.title) return;
+    let cancelled = false;
+    const run = async () => {
+      setVideoLoading(true);
+      setVideoError(null);
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(`${base}/api/videos/content`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            goalTitle: selectedGoalTitle,
+            moduleTitle: selectedModule.title,
+            moduleId: selectedModule.id,
+          })
+        })
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Failed to load video');
+        if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle });
+      } catch (e: any) {
+        if (!cancelled) setVideoError(e?.message || 'Failed to load video');
+      } finally {
+        if (!cancelled) setVideoLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedGoalTitle, selectedModule?.title])
 
   const sendMessage = async () => {
     if (inputMessage.trim()) {
@@ -99,7 +174,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-1">{topic}</h1>
-          <p className="text-muted-foreground">Calculus Fundamentals</p>
+          <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
         </div>
         <Button
           onClick={() => setState({ isCompleted: !isCompleted })}
@@ -123,32 +198,48 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
             {/* Video Tab */}
             <TabsContent value="video" className="mt-4">
               <Card className="p-4 bg-card border border-border">
-                <div className="aspect-video bg-muted rounded-lg">
-                  {/* Placeholder for video player */}
-                </div>
+                {videoLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading video...</p>
+                ) : videoError ? (
+                  <p className="text-sm text-red-600">{videoError}</p>
+                ) : video && video.videoId ? (
+                  <>
+                    <div className="aspect-video rounded-lg overflow-hidden">
+                      <iframe
+                        className="w-full h-full"
+                        src={`https://www.youtube.com/embed/${video.videoId}`}
+                        title={video.videoTitle || 'YouTube video player'}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    </div>
+                    <div className="mt-2">
+                      {video.videoTitle ? <p className="text-sm font-medium text-foreground">{video.videoTitle}</p> : null}
+                      {video.channelTitle ? <p className="text-xs text-muted-foreground">{video.channelTitle}</p> : null}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No video available.</p>
+                )}
               </Card>
             </TabsContent>
 
             {/* Article Tab */}
             <TabsContent value="article" className="mt-4">
               <Card className="p-6 bg-card border border-border">
-                <div className="prose prose-sm max-w-none text-foreground">
-                  <h3 className="font-semibold mb-4">The Power Rule Explained</h3>
-                  <p className="text-sm leading-relaxed mb-4">
-                    The power rule is one of the most fundamental rules in calculus. It states that if f(x) = x^n, then
-                    f'(x) = n·x^(n-1).
-                  </p>
-                  <p className="text-sm leading-relaxed mb-4">
-                    This rule applies to any real number n, making it incredibly versatile for differentiating
-                    polynomial functions.
-                  </p>
-                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 my-4">
-                    <p className="text-sm font-mono">d/dx(x^n) = n·x^(n-1)</p>
+                {articleLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading article...</p>
+                ) : articleError ? (
+                  <p className="text-sm text-red-600">{articleError}</p>
+                ) : articleContent ? (
+                  <div className="prose prose-sm max-w-none text-foreground">
+                    <ReactMarkdown className="markdown" remarkPlugins={[remarkGfm]}>
+                      {articleContent}
+                    </ReactMarkdown>
                   </div>
-                  <p className="text-sm leading-relaxed">
-                    Let's look at some examples to solidify your understanding...
-                  </p>
-                </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Select a module to load content.</p>
+                )}
               </Card>
             </TabsContent>
 

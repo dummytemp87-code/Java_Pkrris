@@ -26,6 +26,8 @@ export default function Home() {
     ],
     inputMessage: "",
     chatLoading: false,
+    selectedGoalTitle: null as string | null,
+    selectedModule: null as any,
 });
 
   const [auth, setAuth] = useState<{ token: string | null; name?: string; email?: string; role?: string }>({ token: null })
@@ -78,7 +80,7 @@ export default function Home() {
       case 'goals':
         return <GoalCreation setGoals={setGoals} onNavigate={setCurrentPage} />
       case 'study-plan':
-        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} />
+        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={(goalTitle, module) => { setLearningScreenState({ ...learningScreenState, selectedGoalTitle: goalTitle, selectedModule: module }); setCurrentPage('learning'); }} />
       case 'learning':
         return <LearningScreen 
                   onNavigate={setCurrentPage} 

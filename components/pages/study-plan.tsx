@@ -17,7 +17,7 @@ interface Module {
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
-export default function StudyPlan({ onNavigate, goal, onSelectGoal }: { onNavigate: (page: string) => void; goal?: Goal; onSelectGoal?: (goal: Goal) => void }) {
+export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearning }: { onNavigate: (page: string) => void; goal?: Goal; onSelectGoal?: (goal: Goal) => void; onStartLearning?: (goalTitle: string, module: Module) => void }) {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -93,6 +93,9 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal }: { onNaviga
   const handleStartLearning = () => {
     if (selectedModule) {
       setIsModalOpen(false)
+      if (goal?.title && onStartLearning) {
+        onStartLearning(goal.title, selectedModule)
+      }
       onNavigate("learning")
     }
   }
