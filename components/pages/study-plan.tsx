@@ -43,7 +43,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
           },
           body: JSON.stringify({
             goalTitle: goal?.title || 'General Study',
-            days: goal?.daysLeft ? Math.max(1, Math.min(7, goal.daysLeft)) : 4,
+            days: goal?.daysLeft ? Math.max(1, goal.daysLeft) : 7,
             level: 'beginner',
           })
         })
@@ -51,10 +51,20 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
         if (!res.ok) throw new Error(data?.error || 'Failed to generate plan')
         const planNode = data?.plan
         if (planNode?.days && Array.isArray(planNode.days)) {
-          setStudyPlan(planNode.days)
+          const normalized = planNode.days.map((d: any) => ({
+            ...d,
+            modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
+          }))
+          setStudyPlan(normalized)
         } else {
           const parsed = typeof data?.planText === 'string' ? JSON.parse(data.planText) : null
-          if (parsed?.days && Array.isArray(parsed.days)) setStudyPlan(parsed.days)
+          if (parsed?.days && Array.isArray(parsed.days)) {
+            const normalized = parsed.days.map((d: any) => ({
+              ...d,
+              modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
+            }))
+            setStudyPlan(normalized)
+          }
         }
       } catch (e: any) {
         setError(e?.message || 'Failed to load study plan')
@@ -64,7 +74,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
     }
     fetchPlan()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goal?.title])
+  }, [goal?.title, goal?.daysLeft])
 
   useEffect(() => {
     if (goal?.title) return
@@ -96,20 +106,19 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
       if (goal?.title && onStartLearning) {
         onStartLearning(goal.title, selectedModule)
       }
-      onNavigate("learning")
     }
   }
 
   const getTypeColor = (type: string) => {
     switch (type) {
       case "video":
-        return "bg-blue-50 text-blue-700 border-l-4 border-l-blue-500"
+        return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-200 border-l-4 border-l-blue-500 dark:border-l-blue-400"
       case "article":
-        return "bg-green-50 text-green-700 border-l-4 border-l-green-500"
+        return "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-200 border-l-4 border-l-green-500 dark:border-l-green-400"
       case "quiz":
-        return "bg-orange-50 text-orange-700 border-l-4 border-l-orange-500"
+        return "bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-200 border-l-4 border-l-orange-500 dark:border-l-orange-400"
       default:
-        return "bg-purple-50 text-purple-700 border-l-4 border-l-purple-500"
+        return "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-200 border-l-4 border-l-purple-500 dark:border-l-purple-400"
     }
   }
 
@@ -186,7 +195,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
                         <span className="text-xs font-semibold uppercase opacity-75">{getTypeLabel(module.type)}</span>
                         <span className="text-xs opacity-60">{module.duration}</span>
                       </div>
-                      <h3 className="font-semibold text-foreground">{module.title}</h3>
+                      <h3 className="font-semibold">{module.title}</h3>
                     </div>
                     <div className="flex-shrink-0">
                       {module.completed ? (

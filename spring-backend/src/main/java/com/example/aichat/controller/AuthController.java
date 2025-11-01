@@ -3,6 +3,7 @@ package com.example.aichat.controller;
 import com.example.aichat.dto.AuthRequest;
 import com.example.aichat.dto.AuthResponse;
 import com.example.aichat.dto.RegisterRequest;
+import com.example.aichat.dto.ChangePasswordRequest;
 import com.example.aichat.model.User;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.security.JwtService;
@@ -50,7 +51,7 @@ public class AuthController {
         u.setEmail(req.getEmail());
         u.setPassword(passwordEncoder.encode(req.getPassword()));
         u = userRepository.save(u);
-        String token = jwtService.generateToken(u.getEmail());
+        String token = jwtService.generateToken(u.getEmail(), u.getTokenVersion() != null ? u.getTokenVersion() : 0);
         return ResponseEntity.ok(new AuthResponse(token, u.getName(), u.getEmail(), u.getRole()));
     }
 
@@ -64,7 +65,7 @@ public class AuthController {
                     .body(Map.of("error", "Invalid credentials"));
         }
         User user = userRepository.findByEmail(req.getEmail()).orElseThrow();
-        String token = jwtService.generateToken(user.getEmail());
+        String token = jwtService.generateToken(user.getEmail(), user.getTokenVersion() != null ? user.getTokenVersion() : 0);
         return ResponseEntity.ok(new AuthResponse(token, user.getName(), user.getEmail(), user.getRole()));
     }
 
@@ -82,5 +83,32 @@ public class AuthController {
                 "email", user.getEmail(),
                 "role", user.getRole()
         ));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@AuthenticationPrincipal UserDetails principal, @Valid @RequestBody ChangePasswordRequest req) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Current password is incorrect"));
+        }
+        user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        // rotate token version to sign-out all existing tokens
+        user.setTokenVersion((user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1);
+        userRepository.save(user);
+        String token = jwtService.generateToken(user.getEmail(), user.getTokenVersion());
+        return ResponseEntity.ok(new AuthResponse(token, user.getName(), user.getEmail(), user.getRole()));
+    }
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<?> logoutAll(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        user.setTokenVersion((user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1);
+        userRepository.save(user);
+        String token = jwtService.generateToken(user.getEmail(), user.getTokenVersion());
+        return ResponseEntity.ok(new AuthResponse(token, user.getName(), user.getEmail(), user.getRole()));
     }
 }

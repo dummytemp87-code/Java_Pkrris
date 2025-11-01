@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .cors(c -> {})
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/db/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/ai-chat").permitAll()

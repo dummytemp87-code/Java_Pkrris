@@ -40,7 +40,7 @@ export default function TaskDetailsModal({ module, isOpen, onClose, onStart }: T
         </div>
         <DialogFooter>
           <Button onClick={onClose} variant="outline">Close</Button>
-          <Button onClick={onStart}>{module.completed ? "Review Again" : "Start Learning"}</Button>
+          <Button onClick={onStart}>{module.completed ? "Review Again" : (module.type === 'quiz' ? "Start Quiz" : "Start Learning")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -6,6 +6,7 @@ import com.example.aichat.model.VideoContent;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.repo.VideoContentRepository;
 import com.example.aichat.service.YouTubeService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,11 +41,23 @@ public class VideoController {
 
             String goalTitle = Optional.ofNullable(req.getGoalTitle()).orElse("").trim();
             String moduleTitle = Optional.ofNullable(req.getModuleTitle()).orElse("").trim();
+            String language = Optional.ofNullable(req.getLanguage()).orElse("english").trim().toLowerCase();
+            String langCode;
+            switch (language) {
+                case "en": case "english": langCode = "en"; break;
+                case "es": case "spanish": langCode = "es"; break;
+                case "fr": case "french": langCode = "fr"; break;
+                case "de": case "german": langCode = "de"; break;
+                default: langCode = language.length() == 2 ? language : "en";
+            }
             if (goalTitle.isEmpty() || moduleTitle.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "goalTitle and moduleTitle are required"));
             }
 
-            Optional<VideoContent> existing = videoRepo.findByUserAndGoalTitleAndModuleTitle(user, goalTitle, moduleTitle);
+            Optional<VideoContent> existing = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, langCode);
+            if (existing.isEmpty()) {
+                existing = videoRepo.findByUserAndGoalTitleAndModuleTitle(user, goalTitle, moduleTitle);
+            }
             if (existing.isPresent()) {
                 VideoContent v = existing.get();
                 return ResponseEntity.ok(Map.of(
@@ -55,10 +68,19 @@ public class VideoController {
                 ));
             }
 
-            // Query YouTube for the best video
-            String query = moduleTitle + " tutorial " + goalTitle;
-            Map<String, Object> body = youTubeService.searchBestVideo(query);
-            List<?> items = (List<?>) body.get("items");
+            // Query YouTube for the best video with fallbacks
+            String[] queries = new String[] {
+                    moduleTitle + " tutorial " + goalTitle,
+                    moduleTitle + " tutorial",
+                    moduleTitle
+            };
+            List<?> items = null;
+            Map<String, Object> body = null;
+            for (String q : queries) {
+                body = youTubeService.searchBestVideo(q, langCode);
+                items = (List<?>) body.get("items");
+                if (items != null && !items.isEmpty()) break;
+            }
             if (items == null || items.isEmpty()) {
                 return ResponseEntity.status(404).body(Map.of("error", "No video found"));
             }
@@ -73,16 +95,30 @@ public class VideoController {
             String channelTitle = snippet != null ? (String) snippet.get("channelTitle") : null;
             String url = "https://www.youtube.com/watch?v=" + videoId;
 
-            VideoContent saved = new VideoContent();
-            saved.setUser(user);
-            saved.setGoalTitle(goalTitle);
-            saved.setModuleId(req.getModuleId());
-            saved.setModuleTitle(moduleTitle);
-            saved.setVideoId(videoId);
-            saved.setVideoTitle(videoTitle);
-            saved.setChannelTitle(channelTitle);
-            saved.setUrl(url);
-            videoRepo.save(saved);
+            try {
+                VideoContent saved = new VideoContent();
+                saved.setUser(user);
+                saved.setGoalTitle(goalTitle);
+                saved.setModuleId(req.getModuleId());
+                saved.setModuleTitle(moduleTitle);
+                saved.setVideoId(videoId);
+                saved.setVideoTitle(videoTitle);
+                saved.setChannelTitle(channelTitle);
+                saved.setUrl(url);
+                saved.setLanguage(langCode);
+                videoRepo.save(saved);
+            } catch (DataIntegrityViolationException dup) {
+                Optional<VideoContent> existing2 = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, langCode);
+                if (existing2.isPresent()) {
+                    VideoContent v = existing2.get();
+                    return ResponseEntity.ok(Map.of(
+                            "videoId", v.getVideoId(),
+                            "videoTitle", v.getVideoTitle(),
+                            "channelTitle", v.getChannelTitle(),
+                            "url", v.getUrl()
+                    ));
+                }
+            }
 
             return ResponseEntity.ok(Map.of(
                     "videoId", videoId,

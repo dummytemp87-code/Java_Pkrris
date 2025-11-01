@@ -5,7 +5,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "video_content", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "goal_title", "module_title"})
+        @UniqueConstraint(columnNames = {"user_id", "goal_title", "module_title", "language"})
 })
 public class VideoContent {
 
@@ -38,6 +38,9 @@ public class VideoContent {
     @Column(name = "url", nullable = false)
     private String url;
 
+    @Column(name = "language")
+    private String language;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -59,6 +62,8 @@ public class VideoContent {
     public void setChannelTitle(String channelTitle) { this.channelTitle = channelTitle; }
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
+    public String getLanguage() { return language; }
+    public void setLanguage(String language) { this.language = language; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

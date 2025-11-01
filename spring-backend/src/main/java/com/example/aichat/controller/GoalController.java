@@ -8,12 +8,17 @@ import com.example.aichat.repo.GoalRepository;
 import com.example.aichat.repo.StudyPlanRepository;
 import com.example.aichat.repo.ArticleContentRepository;
 import com.example.aichat.repo.VideoContentRepository;
+import com.example.aichat.repo.QuizContentRepository;
+import com.example.aichat.repo.ModuleCompletionLogRepository;
 import com.example.aichat.repo.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -32,13 +37,20 @@ public class GoalController {
     private final StudyPlanRepository studyPlanRepository;
     private final ArticleContentRepository articleContentRepository;
     private final VideoContentRepository videoContentRepository;
+    private final QuizContentRepository quizContentRepository;
+    private final ModuleCompletionLogRepository moduleCompletionLogRepository;
 
-    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository) {
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository, QuizContentRepository quizContentRepository, ModuleCompletionLogRepository moduleCompletionLogRepository) {
         this.goalRepository = goalRepository;
         this.userRepository = userRepository;
         this.studyPlanRepository = studyPlanRepository;
         this.articleContentRepository = articleContentRepository;
         this.videoContentRepository = videoContentRepository;
+        this.quizContentRepository = quizContentRepository;
+        this.moduleCompletionLogRepository = moduleCompletionLogRepository;
     }
 
     @GetMapping
@@ -74,6 +86,12 @@ public class GoalController {
                 g.setTargetDate(LocalDate.parse(req.getTargetDate()));
             }
             g.setProgress(0);
+            if (req.getTopics() != null && !req.getTopics().isEmpty()) {
+                try {
+                    String topicsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(req.getTopics());
+                    g.setTopicsJson(topicsJson);
+                } catch (Exception ignore) {}
+            }
             Goal saved = goalRepository.save(g);
 
             LocalDate today = LocalDate.now();
@@ -87,7 +105,8 @@ public class GoalController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@AuthenticationPrincipal UserDetails principal, @PathVariable Long id) {
+    @Transactional
+    public ResponseEntity<?> delete(@AuthenticationPrincipal UserDetails principal, @PathVariable("id") Long id) {
         try {
             if (principal == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
             User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
@@ -97,12 +116,42 @@ public class GoalController {
                 return ResponseEntity.status(404).body(Map.of("error", "Goal not found"));
             }
             // delete related study plan for this goal if any
-            studyPlanRepository.deleteByUserAndGoalTitle(user, g.getTitle());
+            studyPlanRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
             // delete related article content for this goal if any
-            articleContentRepository.deleteByUserAndGoalTitle(user, g.getTitle());
+            articleContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
             // delete related video content for this goal if any
-            videoContentRepository.deleteByUserAndGoalTitle(user, g.getTitle());
+            videoContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            // delete related quiz content for this goal if any
+            quizContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            // delete module completion logs for this goal
+            moduleCompletionLogRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
             goalRepository.delete(g);
+            entityManager.flush();
+            return ResponseEntity.ok(Map.of("ok", true));
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal", "details", ex.getMessage()));
+        }
+    }
+
+    @PostMapping("/delete/{id}")
+    @Transactional
+    public ResponseEntity<?> deleteFallback(@AuthenticationPrincipal UserDetails principal, @PathVariable("id") Long id) {
+        try {
+            if (principal == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+            if (user == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            Goal g = goalRepository.findById(id).orElse(null);
+            if (g == null || !g.getUser().getId().equals(user.getId())) {
+                return ResponseEntity.status(404).body(Map.of("error", "Goal not found"));
+            }
+            // Cleanup related content for this user's goal title
+            studyPlanRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            articleContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            videoContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            quizContentRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            moduleCompletionLogRepository.deleteByUserIdAndGoalTitle(user.getId(), g.getTitle());
+            goalRepository.delete(g);
+            entityManager.flush();
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception ex) {
             return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal", "details", ex.getMessage()));

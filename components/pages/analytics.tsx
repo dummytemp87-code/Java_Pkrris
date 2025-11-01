@@ -15,31 +15,46 @@ import {
   Pie,
   Cell,
 } from "recharts"
+import { useEffect, useState } from "react"
 
 export default function Analytics() {
-  const studyTimeData = [
-    { day: "Mon", hours: 2.5 },
-    { day: "Tue", hours: 3.2 },
-    { day: "Wed", hours: 2.8 },
-    { day: "Thu", hours: 3.5 },
-    { day: "Fri", hours: 2.1 },
-    { day: "Sat", hours: 4.0 },
-    { day: "Sun", hours: 1.5 },
-  ]
+  const [loading, setLoading] = useState(false)
+  const [studyTimeData, setStudyTimeData] = useState<Array<{ day: string; hours: number }>>([])
+  const [progressData, setProgressData] = useState<Array<{ week: string; progress: number }>>([])
+  const [contentTypeData, setContentTypeData] = useState<Array<{ name: string; value: number }>>([])
+  const [totalMinutesWeek, setTotalMinutesWeek] = useState(0)
+  const [modulesCompleted, setModulesCompleted] = useState(0)
+  const [modulesTotal, setModulesTotal] = useState(0)
+  const [averageQuizScore, setAverageQuizScore] = useState(0)
+  const [currentStreakDays, setCurrentStreakDays] = useState(0)
 
-  const progressData = [
-    { week: "Week 1", progress: 25 },
-    { week: "Week 2", progress: 42 },
-    { week: "Week 3", progress: 58 },
-    { week: "Week 4", progress: 72 },
-  ]
-
-  const contentTypeData = [
-    { name: "Videos", value: 45 },
-    { name: "Articles", value: 30 },
-    { name: "Quizzes", value: 15 },
-    { name: "Notes", value: 10 },
-  ]
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        const res = await fetch(`${base}/api/analytics/summary`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+        const data = await res.json().catch(() => ({}))
+        if (!cancelled && res.ok) {
+          setTotalMinutesWeek(Number(data?.totalStudyMinutesThisWeek || 0))
+          setModulesCompleted(Number(data?.modulesCompleted || 0))
+          setModulesTotal(Number(data?.modulesTotal || 0))
+          setAverageQuizScore(Number(data?.averageQuizScore || 0))
+          setCurrentStreakDays(Number(data?.currentStreakDays || 0))
+          setStudyTimeData(Array.isArray(data?.studyTime) ? data.studyTime : [])
+          setProgressData(Array.isArray(data?.progress) ? data.progress : [])
+          setContentTypeData(Array.isArray(data?.contentType) ? data.contentType : [])
+        }
+      } catch {
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
 
   const COLORS = ["#4f46e5", "#06b6d4", "#f97316", "#8b5cf6"]
 
@@ -54,22 +69,22 @@ export default function Analytics() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card className="p-6 bg-card border border-border">
           <p className="text-sm text-muted-foreground mb-1">Total Study Time</p>
-          <p className="text-3xl font-bold text-primary">19.6 hrs</p>
+          <p className="text-3xl font-bold text-primary">{Math.round((totalMinutesWeek/60) * 10) / 10} hrs</p>
           <p className="text-xs text-muted-foreground mt-2">This week</p>
         </Card>
         <Card className="p-6 bg-card border border-border">
           <p className="text-sm text-muted-foreground mb-1">Modules Completed</p>
-          <p className="text-3xl font-bold text-secondary">24</p>
-          <p className="text-xs text-muted-foreground mt-2">Out of 35</p>
+          <p className="text-3xl font-bold text-secondary">{modulesCompleted}</p>
+          <p className="text-xs text-muted-foreground mt-2">Out of {modulesTotal}</p>
         </Card>
         <Card className="p-6 bg-card border border-border">
           <p className="text-sm text-muted-foreground mb-1">Average Score</p>
-          <p className="text-3xl font-bold text-accent">87%</p>
+          <p className="text-3xl font-bold text-accent">{averageQuizScore}%</p>
           <p className="text-xs text-muted-foreground mt-2">On quizzes</p>
         </Card>
         <Card className="p-6 bg-card border border-border">
           <p className="text-sm text-muted-foreground mb-1">Current Streak</p>
-          <p className="text-3xl font-bold text-primary">7 days</p>
+          <p className="text-3xl font-bold text-primary">{currentStreakDays} days</p>
           <p className="text-xs text-muted-foreground mt-2">Keep it up!</p>
         </Card>
       </div>

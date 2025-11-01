@@ -60,6 +60,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
           title: goalTitle,
           description,
           targetDate: deadline || null,
+          topics,
         })
       })
       const data = await res.json();

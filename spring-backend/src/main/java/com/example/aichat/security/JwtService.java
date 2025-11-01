@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import javax.crypto.SecretKey;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 public class JwtService {
@@ -28,8 +30,15 @@ public class JwtService {
     }
 
     public String generateToken(String subject) {
+        return generateToken(subject, 0);
+    }
+
+    public String generateToken(String subject, int tokenVersion) {
         long now = System.currentTimeMillis();
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("v", tokenVersion);
         return Jwts.builder()
+                .claims(claims)
                 .subject(subject)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expirationMs))
@@ -44,6 +53,20 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload()
                 .getSubject();
+    }
+
+    public int extractVersion(String token) {
+        try {
+            Object v = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .get("v");
+            if (v instanceof Number n) return n.intValue();
+            if (v instanceof String s) return Integer.parseInt(s);
+        } catch (Exception ignore) {}
+        return 0;
     }
 
     public boolean isTokenValid(String token, String username) {

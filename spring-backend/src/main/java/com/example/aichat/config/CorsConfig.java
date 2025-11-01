@@ -16,9 +16,19 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
-        config.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Origin",
+                "Accept",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers",
+                "*"
+        ));
+        config.setExposedHeaders(List.of("Authorization", "Content-Disposition"));
         source.registerCorsConfiguration("/**", config);
         return new CorsFilter(source);
     }

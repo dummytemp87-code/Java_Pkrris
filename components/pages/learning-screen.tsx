@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, MessageSquare, FileText, BookMarked, Save, Loader2 } from "lucide-react"
+import { CheckCircle2, MessageSquare, FileText, BookMarked, Save, Loader2, ArrowLeft } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -12,9 +12,10 @@ interface LearningScreenProps {
   onNavigate: (page: string) => void;
   learningState: any;
   setLearningState: (state: any) => void;
+  onProgressUpdated?: () => void | Promise<void>;
 }
 
-export default function LearningScreen({ onNavigate, learningState, setLearningState }: LearningScreenProps) {
+export default function LearningScreen({ onNavigate, learningState, setLearningState, onProgressUpdated }: LearningScreenProps) {
   const { isCompleted, notes, messages, inputMessage, chatLoading, selectedGoalTitle, selectedModule } = learningState;
   const [saveStatus, setSaveStatus] = useState("idle"); // idle, saving, saved
   const [articleLoading, setArticleLoading] = useState(false)
@@ -23,6 +24,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
   const [videoLoading, setVideoLoading] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
   const [video, setVideo] = useState<{ videoId: string; url: string; videoTitle?: string; channelTitle?: string } | null>(null)
+  const [moduleProgress, setModuleProgress] = useState<{ percent: number; done: number; total: number }>({ percent: 0, done: 0, total: 0 })
 
   const setState = (newState: any) => {
     setLearningState({ ...learningState, ...newState });
@@ -71,33 +73,101 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
     const run = async () => {
       setVideoLoading(true);
       setVideoError(null);
-      try {
-        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        const res = await fetch(`${base}/api/videos/content`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            goalTitle: selectedGoalTitle,
-            moduleTitle: selectedModule.title,
-            moduleId: selectedModule.id,
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const language = typeof window !== 'undefined' ? (localStorage.getItem('language') || 'english') : 'english';
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await fetch(`${base}/api/videos/content`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              goalTitle: selectedGoalTitle,
+              moduleTitle: selectedModule.title,
+              moduleId: selectedModule.id,
+              language,
+            })
           })
-        })
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error || 'Failed to load video');
-        if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle });
-      } catch (e: any) {
-        if (!cancelled) setVideoError(e?.message || 'Failed to load video');
-      } finally {
-        if (!cancelled) setVideoLoading(false);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Failed to load video');
+          if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle });
+          lastErr = null;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 200 * attempt));
+        }
+      }
+      if (!cancelled) {
+        if (lastErr) setVideoError(lastErr?.message || 'Failed to load video');
+        setVideoLoading(false);
       }
     };
     run();
     return () => { cancelled = true; };
-  }, [selectedGoalTitle, selectedModule?.title])
+  }, [selectedGoalTitle, selectedModule?.title, selectedModule?.id])
+
+  // Fetch module/goal progress for sidebar
+  useEffect(() => {
+    const fetchProgress = async () => {
+      if (!selectedGoalTitle) return;
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(`${base}/api/study-plan/progress?goalTitle=${encodeURIComponent(selectedGoalTitle)}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          }
+        })
+        const data = await res.json();
+        if (res.ok) {
+          const done = Number(data?.completedModules ?? 0)
+          const total = Number(data?.totalModules ?? 0)
+          const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
+          setModuleProgress({ percent, done, total })
+        }
+      } catch {}
+    }
+    fetchProgress()
+  }, [selectedGoalTitle])
+
+  const toggleCompletion = async () => {
+    if (!selectedGoalTitle || !selectedModule?.id) {
+      setState({ isCompleted: !isCompleted })
+      return
+    }
+    const newVal = !isCompleted
+    setState({ isCompleted: newVal })
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const res = await fetch(`${base}/api/study-plan/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          goalTitle: selectedGoalTitle,
+          moduleId: selectedModule.id,
+          moduleTitle: selectedModule.title,
+          completed: newVal,
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const done = Number(data?.completedModules ?? 0)
+        const total = Number(data?.totalModules ?? 0)
+        const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
+        setModuleProgress({ percent, done, total })
+        if (onProgressUpdated) await onProgressUpdated()
+      }
+    } catch {}
+  }
 
   const sendMessage = async () => {
     if (inputMessage.trim()) {
@@ -172,12 +242,17 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">{topic}</h1>
-          <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center">
+            <ArrowLeft size={16} className="mr-2" /> Back to Study Plan
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-1">{topic}</h1>
+            <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
+          </div>
         </div>
         <Button
-          onClick={() => setState({ isCompleted: !isCompleted })}
+          onClick={toggleCompletion}
           className={`${isCompleted ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"} text-white`}
         >
           <CheckCircle2 size={20} className="mr-2" />
@@ -345,11 +420,12 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-sm text-foreground">Completion</span>
-                  <span className="text-sm font-semibold text-primary">75%</span>
+                  <span className="text-sm font-semibold text-primary">{moduleProgress.percent}%</span>
                 </div>
                 <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full w-3/4 bg-primary rounded-full" />
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${moduleProgress.percent}%` }} />
                 </div>
+                <div className="mt-1 text-xs text-muted-foreground">{moduleProgress.done}/{moduleProgress.total} modules completed</div>
               </div>
             </div>
           </Card>

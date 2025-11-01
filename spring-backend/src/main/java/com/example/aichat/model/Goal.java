@@ -24,6 +24,10 @@ public class Goal {
     @Lob
     private String description;
 
+    @Lob
+    @Column(name = "topics_json", columnDefinition = "LONGTEXT")
+    private String topicsJson;
+
     private LocalDate targetDate;
 
     @Column(nullable = false)
@@ -43,6 +47,9 @@ public class Goal {
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+
+    public String getTopicsJson() { return topicsJson; }
+    public void setTopicsJson(String topicsJson) { this.topicsJson = topicsJson; }
 
     public LocalDate getTargetDate() { return targetDate; }
     public void setTargetDate(LocalDate targetDate) { this.targetDate = targetDate; }
