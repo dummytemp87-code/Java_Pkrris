@@ -43,6 +43,7 @@ com\example\aichat\model\UserSettings.class
 com\example\aichat\model\VideoContent.class
 com\example\aichat\dto\CreateGoalRequest.class
 com\example\aichat\dto\StudyPlanRequest.class
+com\example\aichat\config\OpenApiConfig.class
 com\example\aichat\controller\StudyPlanController.class
 com\example\aichat\dto\QuizAnswer.class
 com\example\aichat\dto\MessageDto.class

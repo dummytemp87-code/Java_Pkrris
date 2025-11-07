@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.HttpStatusCodeException;
 
 import java.util.*;
 
@@ -27,6 +28,9 @@ public class OpenAIService {
     @Value("${gemini.apiKey:}")
     private String geminiApiKeyFromProps;
     
+    @Value("${gemini.apiKeys:}")
+    private String geminiApiKeysFromProps;
+    
     @Value("${gemini.baseUrl:https://generativelanguage.googleapis.com/v1}")
     private String geminiBaseUrl;
 
@@ -42,12 +46,54 @@ public class OpenAIService {
         return geminiApiKeyFromProps;
     }
 
+    private List<String> getGeminiApiKeys() {
+        String raw = System.getenv("GEMINI_API_KEYS");
+        if (raw == null || raw.isBlank()) raw = geminiApiKeysFromProps;
+        List<String> keys = new ArrayList<>();
+        if (raw != null && !raw.isBlank()) {
+            for (String s : raw.split(",")) {
+                String t = s.trim();
+                if (!t.isEmpty()) keys.add(t);
+            }
+        }
+        String single = getGeminiApiKey();
+        if (single != null && !single.isBlank()) {
+            if (keys.isEmpty() || !keys.contains(single)) keys.add(single);
+        }
+        return keys;
+    }
+
     public String getChatCompletion(List<Map<String, String>> messages) throws Exception {
-        String geminiKey = getGeminiApiKey();
-        if (geminiKey == null || geminiKey.isBlank()) {
+        List<String> keys = getGeminiApiKeys();
+        if (keys == null || keys.isEmpty()) {
             throw new IllegalStateException("Missing GEMINI_API_KEY. Set environment variable or property gemini.apiKey");
         }
-        return callGemini(messages, geminiKey);
+        Exception last = null;
+        for (String k : keys) {
+            try {
+                return callGemini(messages, k);
+            } catch (HttpStatusCodeException e) {
+                if (e.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                    last = e;
+                    continue;
+                }
+                String body = e.getResponseBodyAsString();
+                if (e.getStatusCode() == HttpStatus.FORBIDDEN || e.getStatusCode() == HttpStatus.BAD_REQUEST) {
+                    if (body != null) {
+                        String lower = body.toLowerCase();
+                        if (lower.contains("quota") || lower.contains("exceed") || lower.contains("exhausted") || lower.contains("rate")) {
+                            last = e;
+                            continue;
+                        }
+                    }
+                }
+                throw e;
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        if (last != null) throw last;
+        return "I'm sorry, I couldn't generate a response just now.";
     }
 
     private String callOpenAI(List<Map<String, String>> messages, String apiKey) throws Exception {
