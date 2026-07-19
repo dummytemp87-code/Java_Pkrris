@@ -5,26 +5,52 @@ import com.example.aichat.model.User;
 import com.example.aichat.model.UserSettings;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.repo.UserSettingsRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/settings")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class UserSettingsController {
 
     private final UserSettingsRepository settingsRepository;
     private final UserRepository userRepository;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public UserSettingsController(UserSettingsRepository settingsRepository, UserRepository userRepository) {
         this.settingsRepository = settingsRepository;
         this.userRepository = userRepository;
+    }
+
+    private List<String> parseLanguages(UserSettings s) {
+        List<String> result = new ArrayList<>();
+        if (s.getLanguagesJson() != null && !s.getLanguagesJson().isBlank()) {
+            try {
+                JsonNode node = mapper.readTree(s.getLanguagesJson());
+                if (node.isArray()) {
+                    for (JsonNode n : node) {
+                        String v = n.asText("").trim();
+                        if (!v.isEmpty()) result.add(v);
+                    }
+                }
+            } catch (Exception ignore) {}
+        }
+        if (result.isEmpty() && s.getLanguage() != null && !s.getLanguage().isBlank()) {
+            result.add(s.getLanguage());
+        }
+        if (result.isEmpty()) {
+            result.add("english");
+        }
+        return result;
     }
 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
@@ -35,12 +61,14 @@ public class UserSettingsController {
         User user = userOpt.get();
         Optional<UserSettings> settings = settingsRepository.findByUser(user);
         if (settings.isEmpty()) {
-            return ResponseEntity.ok(Map.of("theme", "light", "language", "english", "soundEnabled", true));
+            return ResponseEntity.ok(Map.of("theme", "light", "language", "english", "languages", List.of("english"), "soundEnabled", true));
         }
         UserSettings s = settings.get();
+        List<String> languages = parseLanguages(s);
         return ResponseEntity.ok(Map.of(
                 "theme", s.getTheme() != null ? s.getTheme() : "light",
-                "language", s.getLanguage() != null ? s.getLanguage() : "english",
+                "language", languages.get(0),
+                "languages", languages,
                 "soundEnabled", s.getSoundEnabled() != null ? s.getSoundEnabled() : Boolean.TRUE
         ));
     }
@@ -55,7 +83,17 @@ public class UserSettingsController {
         UserSettings s = existing.orElseGet(UserSettings::new);
         s.setUser(user);
         if (body.getTheme() != null) s.setTheme(body.getTheme());
-        if (body.getLanguage() != null) s.setLanguage(body.getLanguage());
+        if (body.getLanguages() != null && !body.getLanguages().isEmpty()) {
+            try {
+                s.setLanguagesJson(mapper.writeValueAsString(body.getLanguages()));
+                s.setLanguage(body.getLanguages().get(0));
+            } catch (Exception ignore) {}
+        } else if (body.getLanguage() != null) {
+            s.setLanguage(body.getLanguage());
+            try {
+                s.setLanguagesJson(mapper.writeValueAsString(List.of(body.getLanguage())));
+            } catch (Exception ignore) {}
+        }
         if (body.getSoundEnabled() != null) s.setSoundEnabled(body.getSoundEnabled());
         settingsRepository.save(s);
         return ResponseEntity.ok(Map.of("ok", true));

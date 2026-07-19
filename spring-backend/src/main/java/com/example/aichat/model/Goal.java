@@ -21,11 +21,10 @@ public class Goal {
     @Column(nullable = false)
     private String title;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Lob
-    @Column(name = "topics_json", columnDefinition = "LONGTEXT")
+    @Column(name = "topics_json", columnDefinition = "TEXT")
     private String topicsJson;
 
     private LocalDate targetDate;

@@ -6,6 +6,8 @@ import com.example.aichat.model.User;
 import com.example.aichat.repo.ArticleContentRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.service.OpenAIService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,8 +19,9 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/articles")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class ArticleController {
+
+    private static final Logger log = LoggerFactory.getLogger(ArticleController.class);
 
     private final ArticleContentRepository articleRepo;
     private final UserRepository userRepository;
@@ -76,7 +79,8 @@ public class ArticleController {
 
             return ResponseEntity.ok(Map.of("content", cleaned));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to load article", "details", ex.getMessage()));
+            log.error("Failed to load article", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to load article"));
         }
     }
 }

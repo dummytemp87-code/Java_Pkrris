@@ -26,8 +26,7 @@ public class ArticleContent {
     @Column(name = "module_title", nullable = false)
     private String moduleTitle;
 
-    @Lob
-    @Column(name = "content_md", nullable = false, columnDefinition = "LONGTEXT")
+    @Column(name = "content_md", nullable = false, columnDefinition = "TEXT")
     private String contentMarkdown;
 
     @Column(nullable = false, updatable = false)

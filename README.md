@@ -1,30 +1,77 @@
-# personalized_study_assistant
+# StudyHub
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+An AI-powered study assistant: set a learning goal, get a personalized day-by-day study plan,
+learn with an AI tutor, take quizzes, and track your progress — all in one place.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/dummytemp87-8988s-projects/v0-personalized-study-assistant)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/tfcntvOV4G4)
+- **Frontend**: Next.js 15 (App Router), deployed to Vercel
+- **Backend**: Spring Boot 3.3, deployed on an Oracle Cloud Always Free AMD micro VM
+- **Database**: Postgres (Supabase)
+- **AI provider**: Gemini (configurable)
 
-## Overview
+## Local development
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+### Backend
+
+Copy `spring-backend/.env.example` to `spring-backend/.env` and fill in real values, then:
+
+```bash
+cd spring-backend
+./start.sh          # or start.ps1 on Windows PowerShell
+```
+
+`start.sh`/`start.ps1` load `.env` and run `mvn clean spring-boot:run`. `.env` is gitignored —
+never commit it. Alternatively, run without the script by exporting the variables inline:
+
+```bash
+cd spring-backend
+DB_USERNAME=... DB_PASSWORD=... JWT_SECRET=... YOUTUBE_API_KEY=... GEMINI_API_KEY=... mvn spring-boot:run
+```
+
+Required environment variables:
+
+| Variable | Description |
+|---|---|
+| `DB_USERNAME` | Postgres username |
+| `DB_PASSWORD` | Postgres password |
+| `JWT_SECRET` | Random secret for signing auth tokens, at least 32 bytes. Generate with `openssl rand -base64 48` |
+| `YOUTUBE_API_KEY` | YouTube Data API key, used for lesson video search |
+| `GEMINI_API_KEY` | Google Gemini API key, used for chat/quiz/study-plan/article generation |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins. Defaults to `http://localhost:3000` for local dev |
+
+The app fails fast at startup if `DB_USERNAME`, `DB_PASSWORD`, or `JWT_SECRET` are missing —
+this is intentional, so it can never silently run against a stale or default credential.
+
+### Frontend
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Optional environment variable:
+
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_BACKEND_URL` | Backend URL. Defaults to `http://localhost:8080` for local dev |
+
+Frontend runs at `http://localhost:3000`, backend at `http://localhost:8080`.
 
 ## Deployment
 
-Your project is live at:
+**Frontend (Vercel)**: connect this repo, set `NEXT_PUBLIC_BACKEND_URL` to your deployed backend
+URL. Auto-deploys on push.
 
-**[https://vercel.com/dummytemp87-8988s-projects/v0-personalized-study-assistant](https://vercel.com/dummytemp87-8988s-projects/v0-personalized-study-assistant)**
+**Backend (Oracle Cloud Always Free)**: see [`spring-backend/deploy/README.md`](spring-backend/deploy/README.md)
+for the full runbook — provisioning the AMD micro VM, opening firewall ports, and running
+`setup-vm.sh`, which installs Java/Caddy, builds the app, sets it up as a systemd service, and
+gets free HTTPS via nip.io (no domain needed). Set `CORS_ALLOWED_ORIGINS` to your deployed Vercel
+URL — without this, the deployed frontend cannot call the deployed backend. A health check
+endpoint is available at `/actuator/health`. A `Dockerfile` also still exists if you'd rather
+deploy to a container platform (Render/Railway/Fly.io) instead.
 
-## Build your app
+## Security notes
 
-Continue building your app on:
-
-**[https://v0.app/chat/projects/tfcntvOV4G4](https://v0.app/chat/projects/tfcntvOV4G4)**
-
-## How It Works
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+- Never commit real secrets to `application.properties` — all credentials are read from
+  environment variables (see table above), with no defaults for the required ones.
+- Login, registration, and the AI chat endpoint are rate-limited per IP to reduce abuse/brute-force
+  and cost exposure.

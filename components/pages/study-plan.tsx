@@ -51,16 +51,18 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
         if (!res.ok) throw new Error(data?.error || 'Failed to generate plan')
         const planNode = data?.plan
         if (planNode?.days && Array.isArray(planNode.days)) {
-          const normalized = planNode.days.map((d: any) => ({
+          const normalized = planNode.days.map((d: any, i: number) => ({
             ...d,
+            day: `Day ${i + 1}`,
             modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
           }))
           setStudyPlan(normalized)
         } else {
           const parsed = typeof data?.planText === 'string' ? JSON.parse(data.planText) : null
           if (parsed?.days && Array.isArray(parsed.days)) {
-            const normalized = parsed.days.map((d: any) => ({
+            const normalized = parsed.days.map((d: any, i: number) => ({
               ...d,
+              day: `Day ${i + 1}`,
               modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
             }))
             setStudyPlan(normalized)
@@ -174,7 +176,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
           <div key={dayIndex}>
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
-                <h2 className="text-xl font-bold text-foreground">{day.day || `Day ${dayIndex + 1}`}</h2>
+                <h2 className="text-xl font-bold text-foreground">{day.day}</h2>
                 <p className="text-sm text-muted-foreground">{day.date || ''}</p>
               </div>
               <div className="text-sm font-semibold text-primary">

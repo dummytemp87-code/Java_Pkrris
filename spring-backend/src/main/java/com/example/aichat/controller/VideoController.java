@@ -6,6 +6,8 @@ import com.example.aichat.model.VideoContent;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.repo.VideoContentRepository;
 import com.example.aichat.service.YouTubeService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,14 +15,16 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/videos")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class VideoController {
+
+    private static final Logger log = LoggerFactory.getLogger(VideoController.class);
 
     private final VideoContentRepository videoRepo;
     private final UserRepository userRepository;
@@ -41,45 +45,69 @@ public class VideoController {
 
             String goalTitle = Optional.ofNullable(req.getGoalTitle()).orElse("").trim();
             String moduleTitle = Optional.ofNullable(req.getModuleTitle()).orElse("").trim();
-            String language = Optional.ofNullable(req.getLanguage()).orElse("english").trim().toLowerCase();
-            String langCode;
-            switch (language) {
-                case "en": case "english": langCode = "en"; break;
-                case "es": case "spanish": langCode = "es"; break;
-                case "fr": case "french": langCode = "fr"; break;
-                case "de": case "german": langCode = "de"; break;
-                default: langCode = language.length() == 2 ? language : "en";
-            }
             if (goalTitle.isEmpty() || moduleTitle.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "goalTitle and moduleTitle are required"));
             }
 
-            Optional<VideoContent> existing = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, langCode);
-            if (existing.isEmpty()) {
-                existing = videoRepo.findByUserAndGoalTitleAndModuleTitle(user, goalTitle, moduleTitle);
+            // Ordered preference list: explicit "languages" wins, falls back to legacy single "language".
+            List<String> rawLanguages = req.getLanguages();
+            if (rawLanguages == null || rawLanguages.isEmpty()) {
+                rawLanguages = List.of(Optional.ofNullable(req.getLanguage()).orElse("english"));
             }
-            if (existing.isPresent()) {
-                VideoContent v = existing.get();
+            List<String> langCodes = new ArrayList<>();
+            for (String lang : rawLanguages) {
+                String code = toLangCode(lang);
+                if (!langCodes.contains(code)) langCodes.add(code);
+            }
+            if (langCodes.isEmpty()) langCodes.add("en");
+
+            // 1) Cache: check each preferred language in order before falling back to any cached language.
+            for (String langCode : langCodes) {
+                Optional<VideoContent> existing = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, langCode);
+                if (existing.isPresent()) {
+                    VideoContent v = existing.get();
+                    return ResponseEntity.ok(Map.of(
+                            "videoId", v.getVideoId(),
+                            "videoTitle", v.getVideoTitle(),
+                            "channelTitle", v.getChannelTitle(),
+                            "url", v.getUrl(),
+                            "language", v.getLanguage()
+                    ));
+                }
+            }
+            Optional<VideoContent> anyCached = videoRepo.findByUserAndGoalTitleAndModuleTitle(user, goalTitle, moduleTitle);
+            if (anyCached.isPresent()) {
+                VideoContent v = anyCached.get();
                 return ResponseEntity.ok(Map.of(
                         "videoId", v.getVideoId(),
                         "videoTitle", v.getVideoTitle(),
                         "channelTitle", v.getChannelTitle(),
-                        "url", v.getUrl()
+                        "url", v.getUrl(),
+                        "language", v.getLanguage()
                 ));
             }
 
-            // Query YouTube for the best video with fallbacks
+            // 2) Fresh search: try each preferred language in order, falling back to the next if nothing found.
             String[] queries = new String[] {
                     moduleTitle + " tutorial " + goalTitle,
                     moduleTitle + " tutorial",
                     moduleTitle
             };
             List<?> items = null;
-            Map<String, Object> body = null;
-            for (String q : queries) {
-                body = youTubeService.searchBestVideo(q, langCode);
-                items = (List<?>) body.get("items");
-                if (items != null && !items.isEmpty()) break;
+            String matchedLangCode = null;
+            for (String langCode : langCodes) {
+                for (String q : queries) {
+                    Map<String, Object> body = youTubeService.searchBestVideo(q, langCode);
+                    items = (List<?>) body.get("items");
+                    if (items != null && !items.isEmpty()) {
+                        Object actual = body.get("actualLanguage");
+                        matchedLangCode = actual != null ? actual.toString() : langCode;
+                        break;
+                    }
+                }
+                if (items != null && !items.isEmpty()) {
+                    break;
+                }
             }
             if (items == null || items.isEmpty()) {
                 return ResponseEntity.status(404).body(Map.of("error", "No video found"));
@@ -105,17 +133,18 @@ public class VideoController {
                 saved.setVideoTitle(videoTitle);
                 saved.setChannelTitle(channelTitle);
                 saved.setUrl(url);
-                saved.setLanguage(langCode);
+                saved.setLanguage(matchedLangCode);
                 videoRepo.save(saved);
             } catch (DataIntegrityViolationException dup) {
-                Optional<VideoContent> existing2 = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, langCode);
+                Optional<VideoContent> existing2 = videoRepo.findByUserAndGoalTitleAndModuleTitleAndLanguage(user, goalTitle, moduleTitle, matchedLangCode);
                 if (existing2.isPresent()) {
                     VideoContent v = existing2.get();
                     return ResponseEntity.ok(Map.of(
                             "videoId", v.getVideoId(),
                             "videoTitle", v.getVideoTitle(),
                             "channelTitle", v.getChannelTitle(),
-                            "url", v.getUrl()
+                            "url", v.getUrl(),
+                            "language", v.getLanguage()
                     ));
                 }
             }
@@ -124,10 +153,23 @@ public class VideoController {
                     "videoId", videoId,
                     "videoTitle", videoTitle,
                     "channelTitle", channelTitle,
-                    "url", url
+                    "url", url,
+                    "language", matchedLangCode
             ));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to load video", "details", ex.getMessage()));
+            log.error("Failed to load video", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to load video"));
+        }
+    }
+
+    private String toLangCode(String language) {
+        String l = Optional.ofNullable(language).orElse("english").trim().toLowerCase();
+        switch (l) {
+            case "en": case "english": return "en";
+            case "es": case "spanish": return "es";
+            case "fr": case "french": return "fr";
+            case "de": case "german": return "de";
+            default: return l.length() == 2 ? l : "en";
         }
     }
 }

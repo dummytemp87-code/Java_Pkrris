@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, MessageSquare, FileText, BookMarked, Save, Loader2, ArrowLeft } from "lucide-react"
+import { CheckCircle2, MessageSquare, FileText, Save, Loader2, ArrowLeft } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -75,7 +75,19 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
       setVideoError(null);
       const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const language = typeof window !== 'undefined' ? (localStorage.getItem('language') || 'english') : 'english';
+      let languages: string[] = ['english'];
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('languagePreferences');
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) languages = parsed;
+          } catch {}
+        } else {
+          const legacy = localStorage.getItem('language');
+          if (legacy) languages = [legacy];
+        }
+      }
       let lastErr: any = null;
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
@@ -89,7 +101,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
               goalTitle: selectedGoalTitle,
               moduleTitle: selectedModule.title,
               moduleId: selectedModule.id,
-              language,
+              languages,
             })
           })
           const data = await res.json();
@@ -391,28 +403,6 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Learning Resources */}
-          <Card className="p-4 bg-card border border-border">
-            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-              <BookMarked size={18} />
-              Resources
-            </h3>
-            <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-blue-50 border-l-4 border-l-blue-500 cursor-pointer hover:bg-blue-100 transition-colors">
-                <p className="text-sm font-medium text-blue-900">Video Lecture</p>
-                <p className="text-xs text-blue-700">15 min</p>
-              </div>
-              <div className="p-3 rounded-lg bg-green-50 border-l-4 border-l-green-500 cursor-pointer hover:bg-green-100 transition-colors">
-                <p className="text-sm font-medium text-green-900">Reading Material</p>
-                <p className="text-xs text-green-700">8 pages</p>
-              </div>
-              <div className="p-3 rounded-lg bg-orange-50 border-l-4 border-l-orange-500 cursor-pointer hover:bg-orange-100 transition-colors">
-                <p className="text-sm font-medium text-orange-900">Practice Problems</p>
-                <p className="text-xs text-orange-700">10 questions</p>
-              </div>
-            </div>
-          </Card>
-
           {/* Progress */}
           <Card className="p-4 bg-card border border-border">
             <h3 className="font-semibold text-foreground mb-3">Module Progress</h3>

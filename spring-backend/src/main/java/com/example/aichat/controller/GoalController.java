@@ -11,17 +11,28 @@ import com.example.aichat.repo.VideoContentRepository;
 import com.example.aichat.repo.QuizContentRepository;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
 import com.example.aichat.repo.UserRepository;
+import com.example.aichat.service.OpenAIService;
+import com.example.aichat.service.SyllabusTextExtractor;
+import com.example.aichat.service.UnsupportedSyllabusFormatException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,8 +40,9 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/goals")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class GoalController {
+
+    private static final Logger log = LoggerFactory.getLogger(GoalController.class);
 
     private final GoalRepository goalRepository;
     private final UserRepository userRepository;
@@ -39,11 +51,14 @@ public class GoalController {
     private final VideoContentRepository videoContentRepository;
     private final QuizContentRepository quizContentRepository;
     private final ModuleCompletionLogRepository moduleCompletionLogRepository;
+    private final OpenAIService aiService;
+    private final SyllabusTextExtractor syllabusTextExtractor;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository, QuizContentRepository quizContentRepository, ModuleCompletionLogRepository moduleCompletionLogRepository) {
+    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository, QuizContentRepository quizContentRepository, ModuleCompletionLogRepository moduleCompletionLogRepository, OpenAIService aiService, SyllabusTextExtractor syllabusTextExtractor) {
         this.goalRepository = goalRepository;
         this.userRepository = userRepository;
         this.studyPlanRepository = studyPlanRepository;
@@ -51,6 +66,8 @@ public class GoalController {
         this.videoContentRepository = videoContentRepository;
         this.quizContentRepository = quizContentRepository;
         this.moduleCompletionLogRepository = moduleCompletionLogRepository;
+        this.aiService = aiService;
+        this.syllabusTextExtractor = syllabusTextExtractor;
     }
 
     @GetMapping
@@ -100,7 +117,70 @@ public class GoalController {
         } catch (DataIntegrityViolationException dup) {
             return ResponseEntity.status(409).body(Map.of("error", "Goal with this title already exists"));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to create goal", "details", ex.getMessage()));
+            log.error("Failed to create goal", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to create goal"));
+        }
+    }
+
+    @PostMapping(value = "/analyze-syllabus", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> analyzeSyllabus(@AuthenticationPrincipal UserDetails principal, @RequestParam("file") MultipartFile file) {
+        try {
+            if (principal == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            if (file == null || file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "No file uploaded"));
+
+            String filename = file.getOriginalFilename();
+            String system = "You are an assistant that reads a course syllabus and extracts structured study information. " +
+                    "Return STRICT JSON only (no markdown, no prose). Schema: {\"title\": string, \"description\": string, \"topics\": string[]}. " +
+                    "title: a concise course/goal title (max 8 words). description: a 1-2 sentence summary of what the course covers. " +
+                    "topics: 5-15 distinct topic names covered, in the order they appear.";
+
+            String content;
+            if (SyllabusTextExtractor.isImage(filename)) {
+                List<Map<String, String>> messages = new ArrayList<>();
+                messages.add(Map.of("role", "system", "content", system));
+                messages.add(Map.of("role", "user", "content", "This image shows a course syllabus. Read it and extract the structured information."));
+                content = aiService.getChatCompletionWithImage(messages, file.getBytes(), SyllabusTextExtractor.imageMimeType(filename));
+            } else {
+                String text;
+                try {
+                    text = syllabusTextExtractor.extract(file);
+                } catch (UnsupportedSyllabusFormatException ex) {
+                    return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+                }
+                if (text == null || text.isBlank()) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Could not extract any readable text from the file"));
+                }
+                // Cap prompt size: a full textbook-length syllabus doesn't need to be sent in full
+                // for the model to identify title/description/topics from the opening sections.
+                String truncated = text.length() > 12000 ? text.substring(0, 12000) : text;
+
+                List<Map<String, String>> messages = new ArrayList<>();
+                messages.add(Map.of("role", "system", "content", system));
+                messages.add(Map.of("role", "user", "content", "Syllabus content:\n" + truncated));
+                content = aiService.getChatCompletion(messages);
+            }
+            String cleaned = content.trim();
+            if (cleaned.startsWith("```")) {
+                cleaned = cleaned.replaceFirst("^```[a-zA-Z]*\\n", "");
+                if (cleaned.endsWith("```")) cleaned = cleaned.substring(0, cleaned.length() - 3);
+            }
+
+            JsonNode node = mapper.readTree(cleaned);
+            Map<String, Object> result = new HashMap<>();
+            result.put("title", node.path("title").asText(""));
+            result.put("description", node.path("description").asText(""));
+            List<String> topics = new ArrayList<>();
+            if (node.path("topics").isArray()) {
+                for (JsonNode t : node.path("topics")) {
+                    String s = t.asText("").trim();
+                    if (!s.isBlank()) topics.add(s);
+                }
+            }
+            result.put("topics", topics);
+            return ResponseEntity.ok(result);
+        } catch (Exception ex) {
+            log.error("Failed to analyze syllabus", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to analyze syllabus. You can still fill in the details manually."));
         }
     }
 
@@ -129,7 +209,8 @@ public class GoalController {
             entityManager.flush();
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal", "details", ex.getMessage()));
+            log.error("Failed to delete goal", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal"));
         }
     }
 
@@ -154,7 +235,8 @@ public class GoalController {
             entityManager.flush();
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal", "details", ex.getMessage()));
+            log.error("Failed to delete goal", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to delete goal"));
         }
     }
 }

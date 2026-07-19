@@ -4,6 +4,8 @@ import com.example.aichat.dto.ChatReplyDto;
 import com.example.aichat.dto.ChatRequestDto;
 import com.example.aichat.dto.MessageDto;
 import com.example.aichat.service.OpenAIService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +16,8 @@ import java.util.*;
 @RequestMapping("/api/ai-chat")
 public class ChatController {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
+
     private final OpenAIService openAIService;
 
     public ChatController(OpenAIService openAIService) {
@@ -21,7 +25,6 @@ public class ChatController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @CrossOrigin(origins = {"http://localhost:3000"}, allowedHeaders = "*", methods = {RequestMethod.POST, RequestMethod.OPTIONS})
     public ResponseEntity<?> chat(@RequestBody ChatRequestDto req) {
         try {
             List<Map<String, String>> msgs = new ArrayList<>();
@@ -43,9 +46,9 @@ public class ChatController {
             String reply = openAIService.getChatCompletion(msgs);
             return ResponseEntity.ok(new ChatReplyDto(reply));
         } catch (Exception ex) {
+            log.error("Failed to get AI response", ex);
             Map<String, Object> err = new HashMap<>();
             err.put("error", "Failed to get AI response");
-            err.put("details", ex.getMessage());
             return ResponseEntity.status(500).body(err);
         }
     }

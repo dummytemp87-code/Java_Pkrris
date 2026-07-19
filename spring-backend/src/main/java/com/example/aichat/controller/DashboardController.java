@@ -7,6 +7,8 @@ import com.example.aichat.repo.UserRepository;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,8 +22,9 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/dashboard")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class DashboardController {
+
+    private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
     private final UserRepository userRepository;
     private final StudyPlanRepository studyPlanRepository;
@@ -57,7 +60,8 @@ public class DashboardController {
             body.put("todaysTasks", todaysTasks);
             return ResponseEntity.ok(body);
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to load dashboard summary", "details", ex.getMessage()));
+            log.error("Failed to load dashboard summary", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to load dashboard summary"));
         }
     }
 

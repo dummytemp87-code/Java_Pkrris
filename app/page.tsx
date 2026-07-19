@@ -8,15 +8,16 @@ import StudyPlan from '@/components/pages/study-plan'
 import LearningScreen from '@/components/pages/learning-screen'
 import QuizPage from '@/components/pages/quiz-page'
 import AIChat from '@/components/pages/ai-chat'
-import ResourceLibrary from '@/components/pages/resource-library'
 import Analytics from '@/components/pages/analytics'
 import Settings from '@/components/pages/settings'
 import Auth from '@/components/pages/auth'
+import Landing from '@/components/pages/landing'
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('dashboard')
+  const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing')
   const [goals, setGoals] = useState<Goal[]>([])
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0)
 
@@ -24,7 +25,7 @@ export default function Home() {
     isCompleted: false,
     notes: "",
     messages: [
-      { id: 1, role: "tutor", text: "Hi! I'm your AI tutor. What would you like to learn about derivatives?" },
+      { id: 1, role: "tutor", text: "Hi! I'm your AI tutor. What would you like to know about this topic?" },
     ],
     inputMessage: "",
     chatLoading: false,
@@ -42,8 +43,12 @@ export default function Home() {
     fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${t}` } })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data) setAuth({ token: t, name: data.name, email: data.email, role: data.role })
-        else setAuth({ token: null })
+        if (data) {
+          setAuth({ token: t, name: data.name, email: data.email, role: data.role })
+          setView('app')
+        } else {
+          setAuth({ token: null })
+        }
       })
       .catch(() => setAuth({ token: null }))
   }, [])
@@ -101,6 +106,30 @@ export default function Home() {
     }
   };
 
+  const handleStartLearning = (goalTitle: string, module: any) => {
+    setLearningScreenState(prev => {
+      const isSameModule = prev.selectedGoalTitle === goalTitle && prev.selectedModule?.id === module?.id
+      if (isSameModule) {
+        return { ...prev, selectedGoalTitle: goalTitle, selectedModule: module }
+      }
+      // Different module: start a fresh chat/notes thread instead of carrying over
+      // the previous module's conversation and pinning the AI to the wrong topic.
+      return {
+        ...prev,
+        selectedGoalTitle: goalTitle,
+        selectedModule: module,
+        messages: [
+          { id: 1, role: "tutor", text: `Hi! I'm your AI tutor. What would you like to know about ${module?.title || "this topic"}?` },
+        ],
+        notes: "",
+        isCompleted: false,
+        inputMessage: "",
+        chatLoading: false,
+      }
+    })
+    setCurrentPage(module?.type === 'quiz' ? 'quiz' : 'learning')
+  }
+
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
@@ -111,19 +140,24 @@ export default function Home() {
             onDeleteGoal={handleDeleteGoal}
             onSelectGoal={(goal: Goal) => { setSelectedGoal(goal); setCurrentPage('study-plan'); }}
             refreshKey={dashboardRefreshKey}
+            userName={auth.name}
           />
         )
       case 'goals':
         return <GoalCreation setGoals={setGoals} onNavigate={setCurrentPage} />
       case 'study-plan':
-        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={(goalTitle, module) => { setLearningScreenState(prev => ({ ...prev, selectedGoalTitle: goalTitle, selectedModule: module })); setCurrentPage(module?.type === 'quiz' ? 'quiz' : 'learning'); }} />
+        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
       case 'learning':
-        return <LearningScreen 
-                  onNavigate={setCurrentPage} 
-                  learningState={learningScreenState} 
-                  setLearningState={setLearningScreenState} 
-                  onProgressUpdated={refreshGoals}
-                />
+        return learningScreenState.selectedGoalTitle && learningScreenState.selectedModule ? (
+          <LearningScreen
+            onNavigate={setCurrentPage}
+            learningState={learningScreenState}
+            setLearningState={setLearningScreenState}
+            onProgressUpdated={refreshGoals}
+          />
+        ) : (
+          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
+        )
       case 'quiz':
         return learningScreenState.selectedGoalTitle && learningScreenState.selectedModule ? (
           <QuizPage 
@@ -133,29 +167,31 @@ export default function Home() {
             onProgressUpdated={refreshGoals}
           />
         ) : (
-          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={(goalTitle, module) => { setLearningScreenState(prev => ({ ...prev, selectedGoalTitle: goalTitle, selectedModule: module })); setCurrentPage(module?.type === 'quiz' ? 'quiz' : 'learning'); }} />
+          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
         )
       case 'chat':
-        return <AIChat />
-      case 'resources':
-        return <ResourceLibrary />
+        return <AIChat goals={goals} />
       case 'analytics':
         return <Analytics />
       case 'settings':
         return <Settings />
       default:
-        return <Dashboard onNavigate={setCurrentPage} goals={goals} onDeleteGoal={handleDeleteGoal} refreshKey={dashboardRefreshKey} />
+        return <Dashboard onNavigate={setCurrentPage} goals={goals} onDeleteGoal={handleDeleteGoal} refreshKey={dashboardRefreshKey} userName={auth.name} />
     }
   }
 
-  return (
-    auth.token ? (
+  if (auth.token) {
+    return (
       <div className='flex h-screen bg-background'>
         <Navigation currentPage={currentPage} onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }} />
         <main className='flex-1 overflow-auto'>{renderPage()}</main>
       </div>
-    ) : (
-      <Auth onAuthenticated={(u) => setAuth(u)} />
     )
-  )
+  }
+
+  if (view === 'auth') {
+    return <Auth onAuthenticated={(u) => { setAuth(u); setView('app') }} onBack={() => setView('landing')} />
+  }
+
+  return <Landing onGetStarted={() => setView('auth')} onLogin={() => setView('auth')} />
 }

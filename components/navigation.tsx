@@ -1,13 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useTheme } from "next-themes"
 import {
   LayoutDashboard,
   Target,
   Calendar,
   BookOpen,
   MessageSquare,
-  Library,
   BarChart3,
   Settings,
   Menu,
@@ -23,7 +23,11 @@ interface NavigationProps {
 
 export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isDark, setIsDark] = useState(false)
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => setMounted(true), [])
+  const isDark = mounted && theme === "dark"
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,18 +35,12 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
     { id: "study-plan", label: "Study Plan", icon: Calendar },
     { id: "learning", label: "Learn", icon: BookOpen },
     { id: "chat", label: "AI Tutor", icon: MessageSquare },
-    { id: "resources", label: "Resources", icon: Library },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "settings", label: "Settings", icon: Settings },
   ]
 
   const toggleTheme = () => {
-    setIsDark(!isDark)
-    if (isDark) {
-      document.documentElement.classList.remove("dark")
-    } else {
-      document.documentElement.classList.add("dark")
-    }
+    setTheme(isDark ? "light" : "dark")
   }
 
   return (

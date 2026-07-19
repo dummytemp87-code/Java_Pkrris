@@ -26,6 +26,8 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
   const [topics, setTopics] = useState<string[]>([])
   const [newTopic, setNewTopic] = useState("")
   const [syllabus, setSyllabus] = useState<File | null>(null)
+  const [analyzingSyllabus, setAnalyzingSyllabus] = useState(false)
+  const [syllabusError, setSyllabusError] = useState<string | null>(null)
 
   const addTopic = () => {
     if (newTopic.trim()) {
@@ -38,11 +40,39 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
     setTopics(topics.filter((_, i) => i !== index))
   }
 
-  const handleSyllabusUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const file = e.target.files[0];
-      setSyllabus(file);
-      setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title
+  const handleSyllabusUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyllabus(file);
+    setSyllabusError(null);
+    setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title while analysis runs
+
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setAnalyzingSyllabus(true);
+    try {
+      const res = await fetch(`${base}/api/goals/analyze-syllabus`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      })
+      const data = await res.json();
+      if (!res.ok) {
+        setSyllabusError(data?.error || 'Failed to analyze syllabus');
+        return;
+      }
+      if (data.title) setGoalTitle(data.title);
+      if (data.description) setDescription(data.description);
+      if (Array.isArray(data.topics) && data.topics.length > 0) setTopics(data.topics);
+    } catch (err) {
+      setSyllabusError('Failed to analyze syllabus. You can still fill in the details manually.');
+    } finally {
+      setAnalyzingSyllabus(false);
     }
   }
 
@@ -124,15 +154,21 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
           <Card className="p-6 bg-card border border-border">
             <label className="block text-sm font-semibold text-foreground mb-4">Upload Syllabus (Optional)</label>
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
-              <input type="file" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" />
-              <label htmlFor="syllabus-upload" className="cursor-pointer">
+              <input type="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.webp" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" disabled={analyzingSyllabus} />
+              <label htmlFor="syllabus-upload" className={analyzingSyllabus ? "cursor-wait" : "cursor-pointer"}>
                 <Upload className="mx-auto mb-2 text-muted-foreground" size={32} />
                 <p className="text-sm font-medium text-foreground">
-                  {syllabus ? syllabus.name : "Click to upload or drag and drop"}
+                  {analyzingSyllabus ? "Analyzing syllabus..." : syllabus ? syllabus.name : "Click to upload or drag and drop"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, DOC, or TXT files</p>
+                <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, or a photo of your syllabus (JPG/PNG)</p>
               </label>
             </div>
+            {syllabusError && (
+              <p className="text-xs text-destructive mt-2">{syllabusError}</p>
+            )}
+            {!analyzingSyllabus && !syllabusError && syllabus && (
+              <p className="text-xs text-muted-foreground mt-2">Title, description, and topics were filled in from your syllabus — feel free to edit them.</p>
+            )}
           </Card>
         </div>
 

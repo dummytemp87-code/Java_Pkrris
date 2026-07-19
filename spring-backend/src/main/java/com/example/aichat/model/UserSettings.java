@@ -23,6 +23,9 @@ public class UserSettings {
     @Column(name = "language")
     private String language;
 
+    @Column(name = "languages_json", columnDefinition = "TEXT")
+    private String languagesJson;
+
     @Column(name = "sound_enabled")
     private Boolean soundEnabled;
 
@@ -40,6 +43,9 @@ public class UserSettings {
 
     public String getLanguage() { return language; }
     public void setLanguage(String language) { this.language = language; }
+
+    public String getLanguagesJson() { return languagesJson; }
+    public void setLanguagesJson(String languagesJson) { this.languagesJson = languagesJson; }
 
     public Boolean getSoundEnabled() { return soundEnabled; }
     public void setSoundEnabled(Boolean soundEnabled) { this.soundEnabled = soundEnabled; }

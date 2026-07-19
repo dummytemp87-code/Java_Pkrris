@@ -18,12 +18,14 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService(
-            @Value("${jwt.secret:CHANGEME_SUPER_SECRET_KEY_32_BYTES_MIN_LENGTH_1234567890}") String secret,
+            @Value("${jwt.secret}") String secret,
             @Value("${jwt.expiration:86400000}") long expirationMs
     ) {
-        // ensure at least 32 bytes for HS256
+        // HS256 requires at least 32 bytes. Fail fast rather than ever falling back to a
+        // predictable default secret.
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
-            secret = "CHANGEME_SUPER_SECRET_KEY_32_BYTES_MIN_LENGTH_123456";
+            throw new IllegalStateException(
+                    "JWT_SECRET must be set and at least 32 bytes. Generate one with: openssl rand -base64 48");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;

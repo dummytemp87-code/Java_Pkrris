@@ -3,7 +3,25 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Bell, Lock, User, Palette } from "lucide-react"
+import { Bell, Lock, User, Palette, X } from "lucide-react"
+
+const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "english", label: "English" },
+  { value: "spanish", label: "Spanish" },
+  { value: "french", label: "French" },
+  { value: "german", label: "German" },
+  { value: "hi", label: "Hindi" },
+  { value: "ta", label: "Tamil" },
+  { value: "te", label: "Telugu" },
+  { value: "pt", label: "Portuguese" },
+  { value: "it", label: "Italian" },
+  { value: "zh", label: "Chinese" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "ar", label: "Arabic" },
+  { value: "ru", label: "Russian" },
+]
+const languageLabel = (code: string) => LANGUAGE_OPTIONS.find((o) => o.value === code)?.label || code
 
 export default function Settings() {
   type SettingsState = {
@@ -12,7 +30,7 @@ export default function Settings() {
     weeklyReport: boolean;
     soundEnabled: boolean;
     theme: string;
-    language: string;
+    languages: string[];
   };
 
   const [settings, setSettings] = useState<SettingsState>({
@@ -21,23 +39,43 @@ export default function Settings() {
     weeklyReport: false,
     soundEnabled: true,
     theme: "light",
-    language: "english",
+    languages: ["english"],
   })
+  const [languageToAdd, setLanguageToAdd] = useState(LANGUAGE_OPTIONS[0].value)
 
   useEffect(() => {
-    const lang = typeof window !== 'undefined' ? localStorage.getItem('language') : null
-    if (lang) {
-      setSettings((prev) => ({ ...prev, language: lang }))
-    } else if (typeof window !== 'undefined') {
-      localStorage.setItem('language', 'english')
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('languagePreferences') : null
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSettings((prev) => ({ ...prev, languages: parsed }))
+          return
+        }
+      } catch {}
+    }
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('languagePreferences', JSON.stringify(["english"]))
     }
   }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('language', settings.language)
+      localStorage.setItem('languagePreferences', JSON.stringify(settings.languages))
     }
-  }, [settings.language])
+    if (settings.languages.includes(languageToAdd)) {
+      const next = LANGUAGE_OPTIONS.find((o) => !settings.languages.includes(o.value))
+      if (next) setLanguageToAdd(next.value)
+    }
+  }, [settings.languages])
+
+  const addLanguage = () => {
+    if (settings.languages.includes(languageToAdd)) return
+    setSettings((prev) => ({ ...prev, languages: [...prev.languages, languageToAdd] }))
+  }
+  const removeLanguage = (code: string) => {
+    setSettings((prev) => ({ ...prev, languages: prev.languages.filter((l) => l !== code) }))
+  }
 
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -66,10 +104,10 @@ export default function Settings() {
         if (res.ok) {
           const data = await res.json()
           const theme = data?.theme || 'light'
-          const language = data?.language || 'english'
+          const languages = Array.isArray(data?.languages) && data.languages.length > 0 ? data.languages : [data?.language || 'english']
           const soundEnabled = typeof data?.soundEnabled === 'boolean' ? data.soundEnabled : true
-          setSettings((prev) => ({ ...prev, theme, language, soundEnabled }))
-          if (typeof window !== 'undefined') localStorage.setItem('language', language)
+          setSettings((prev) => ({ ...prev, theme, languages, soundEnabled }))
+          if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(languages))
         }
       } catch (e: any) {
         setBackendError(e?.message || 'Failed to load settings')
@@ -109,7 +147,7 @@ export default function Settings() {
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
       const body = {
         theme: settings.theme,
-        language: settings.language,
+        languages: settings.languages,
         soundEnabled: settings.soundEnabled,
       }
       const res = await fetch(`${base}/api/settings`, {
@@ -121,7 +159,7 @@ export default function Settings() {
         const data = await res.json().catch(() => ({}))
         throw new Error(data?.error || 'Failed to save settings')
       }
-      if (typeof window !== 'undefined') localStorage.setItem('language', settings.language)
+      if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(settings.languages))
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 1200)
     } catch (e: any) {
@@ -135,7 +173,7 @@ export default function Settings() {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  type SelectKey = 'theme' | 'language';
+  type SelectKey = 'theme';
   const handleChange = (key: SelectKey, value: string) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
@@ -277,17 +315,44 @@ export default function Settings() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-2">Language</label>
-              <select
-                value={settings.language}
-                onChange={(e) => handleChange("language", e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="english">English</option>
-                <option value="spanish">Spanish</option>
-                <option value="french">French</option>
-                <option value="german">German</option>
-              </select>
+              <label className="block text-sm font-semibold text-foreground mb-2">Language Preferences</label>
+              <p className="text-xs text-muted-foreground mb-2">Videos are searched in your first preference; if none are found, the next one is tried.</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {settings.languages.map((code, idx) => (
+                  <div
+                    key={code}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-sm font-medium text-foreground"
+                  >
+                    <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                    <span>{languageLabel(code)}</span>
+                    {settings.languages.length > 1 && (
+                      <button
+                        onClick={() => removeLanguage(code)}
+                        className="text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label={`Remove ${languageLabel(code)}`}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {LANGUAGE_OPTIONS.some((o) => !settings.languages.includes(o.value)) && (
+                <div className="flex gap-2">
+                  <select
+                    value={languageToAdd}
+                    onChange={(e) => setLanguageToAdd(e.target.value)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {LANGUAGE_OPTIONS.filter((o) => !settings.languages.includes(o.value)).map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  <Button onClick={addLanguage} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    Add
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
               <div>

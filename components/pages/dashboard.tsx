@@ -2,7 +2,8 @@
 
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, Clock, Zap, TrendingUp, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { CheckCircle2, Clock, Zap, TrendingUp, X, Target } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 
 interface Goal {
@@ -12,18 +13,20 @@ interface Goal {
   daysLeft: number;
 }
 
-export default function Dashboard({ 
-  onNavigate, 
-  goals, 
+export default function Dashboard({
+  onNavigate,
+  goals,
   onDeleteGoal,
   onSelectGoal,
   refreshKey,
-}: { 
-  onNavigate: (page: string) => void; 
+  userName,
+}: {
+  onNavigate: (page: string) => void;
   goals: Goal[];
   onDeleteGoal: (id: number) => void;
   onSelectGoal?: (goal: Goal) => void;
   refreshKey?: number;
+  userName?: string;
 }) {
   const [loadingSummary, setLoadingSummary] = useState(false)
   const [tasksCompletedToday, setTasksCompletedToday] = useState(0)
@@ -68,9 +71,9 @@ export default function Dashboard({
   const completedToday = tasksCompletedToday
   const totalTime = studyMinutesToday
 
-  const overallProgress = Math.round(
-    goals.reduce((acc, goal) => acc + goal.progress, 0) / goals.length
-  )
+  const overallProgress = goals.length
+    ? Math.round(goals.reduce((acc, goal) => acc + goal.progress, 0) / goals.length)
+    : 0
 
   const openTaskGoal = (goalTitle: string) => {
     const g = goals.find(x => x.title === goalTitle)
@@ -93,7 +96,7 @@ export default function Dashboard({
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back, Learner!</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h1>
         <p className="text-muted-foreground">Keep up the momentum with your studies</p>
       </div>
 
@@ -182,6 +185,15 @@ export default function Dashboard({
         <div>
           <Card className="p-6 bg-card border border-border">
             <h2 className="text-xl font-bold text-foreground mb-4">Active Goals</h2>
+            {goals.length === 0 ? (
+              <div className="text-center py-6">
+                <Target size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-sm text-muted-foreground mb-4">You haven't set a learning goal yet.</p>
+                <Button onClick={() => onNavigate("goals")} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  Create your first goal
+                </Button>
+              </div>
+            ) : (
             <div className="space-y-4">
               {goals.map((goal) => (
                 <div key={goal.id} className="space-y-2">
@@ -201,6 +213,7 @@ export default function Dashboard({
                 </div>
               ))}
             </div>
+            )}
           </Card>
         </div>
       </div>

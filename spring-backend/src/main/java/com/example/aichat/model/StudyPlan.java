@@ -20,8 +20,7 @@ public class StudyPlan {
     @Column(name = "goal_title", nullable = false)
     private String goalTitle;
 
-    @Lob
-    @Column(name = "plan_json", nullable = false, columnDefinition = "LONGTEXT")
+    @Column(name = "plan_json", nullable = false, columnDefinition = "TEXT")
     private String planJson;
 
     @Column

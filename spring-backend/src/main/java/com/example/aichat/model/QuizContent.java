@@ -26,8 +26,7 @@ public class QuizContent {
     @Column(name = "module_title", nullable = false)
     private String moduleTitle;
 
-    @Lob
-    @Column(name = "quiz_json", nullable = false, columnDefinition = "LONGTEXT")
+    @Column(name = "quiz_json", nullable = false, columnDefinition = "TEXT")
     private String quizJson;
 
     @Column(name = "score")

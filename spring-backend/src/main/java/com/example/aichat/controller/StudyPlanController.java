@@ -14,6 +14,8 @@ import com.example.aichat.model.Goal;
 import com.example.aichat.repo.GoalRepository;
 import com.example.aichat.model.ModuleCompletionLog;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,8 +28,9 @@ import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/study-plan")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class StudyPlanController {
+
+    private static final Logger log = LoggerFactory.getLogger(StudyPlanController.class);
 
     private final OpenAIService aiService;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -56,7 +59,9 @@ public class StudyPlanController {
                 return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
             }
             String goal = Optional.ofNullable(req.getGoalTitle()).orElse("General Study");
-            int days = Optional.ofNullable(req.getDays()).orElse(4);
+            // Cap at 60: with adaptive modules/day this comfortably fits the token budget;
+            // beyond this a single JSON response risks truncation and rate-limit rejection.
+            int days = Math.min(Optional.ofNullable(req.getDays()).orElse(4), 60);
             String level = Optional.ofNullable(req.getLevel()).orElse("beginner");
             String goalKey = goal.trim();
 
@@ -76,18 +81,21 @@ public class StudyPlanController {
                 } catch (Exception ignore) {}
             }
 
-            // 1) Return stored plan only if requested days match stored days; otherwise regenerate and update
+            // 1) Return the stored plan if it's valid, regardless of the live "days" value.
+            // "days" is normally derived from the goal's daysLeft countdown, which changes every
+            // calendar day — matching against it would force a full regeneration once per day.
+            // A plan, once generated for a goal, should persist until explicitly regenerated.
             Optional<StudyPlan> existing = studyPlanRepository.findByUserAndGoalTitle(user, goalKey);
             if (existing.isPresent()) {
-                Integer storedDays = existing.get().getDays();
-                if (storedDays != null && storedDays.equals(days)) {
-                    String planJson = existing.get().getPlanJson();
-                    try {
-                        JsonNode node = mapper.readTree(planJson);
+                String planJson = existing.get().getPlanJson();
+                try {
+                    JsonNode node = mapper.readTree(planJson);
+                    if (node.has("days") && node.get("days").isArray() && !node.get("days").isEmpty()) {
                         return ResponseEntity.ok(Map.of("plan", node));
-                    } catch (Exception parseEx) {
-                        return ResponseEntity.ok(Map.of("planText", planJson));
                     }
+                    // stored plan is malformed/incomplete -> fall through and regenerate
+                } catch (Exception parseEx) {
+                    // stored plan is invalid JSON (e.g. truncated) -> fall through and regenerate
                 }
             }
 
@@ -97,11 +105,17 @@ public class StudyPlanController {
                     "    \"day\": string, \"date\": string,\n" +
                     "    \"modules\": [ { \"id\": number, \"title\": string, \"duration\": string, \"completed\": boolean, \"type\": one of [\\\"video\\\", \\\"quiz\\\"], \"description\": string } ]\n" +
                     "  } ]\n" +
-                    "}. Keep durations short like '45 min'. No extra text.";
+                    "}. Keep individual module durations short (15-40 min each), e.g. '30 min'. No extra text.";
             messages.add(Map.of("role", "system", "content", system));
+
+            // Scale modules/day inversely with total days so overall plan scope stays
+            // roughly constant: a short deadline packs more per day, a long one spreads out.
+            int targetTotalModules = topics.isEmpty() ? 16 : Math.max(topics.size() * 2, 10);
+            int modulesPerDay = Math.max(1, Math.min(6, Math.round(targetTotalModules / (float) days)));
+
             StringBuilder prompt = new StringBuilder(String.format(
-                    "Create a %d-day study plan for the goal: '%s'. Difficulty level: %s. Use only video and quiz modules with concise descriptions (avoid articles).",
-                    days, goal, level));
+                    "Create a %d-day study plan for the goal: '%s'. Difficulty level: %s. Each day should have about %d modules (a mix of video and quiz types) covering distinct sub-topics in meaningful depth. The combined duration of all modules in a single day must not exceed 120 minutes total, so the day's workload is realistically finishable in one sitting — reduce module count or duration as needed to fit this budget. Use only video and quiz modules with concise descriptions (avoid articles).",
+                    days, goal, level, modulesPerDay));
             if (description != null && !description.isBlank()) {
                 prompt.append("\nContext/Description: ").append(description.trim());
             }
@@ -171,9 +185,9 @@ public class StudyPlanController {
             }
             return ResponseEntity.ok(body);
         } catch (Exception ex) {
+            log.error("Failed to generate study plan", ex);
             Map<String, Object> err = new HashMap<>();
             err.put("error", "Failed to generate study plan");
-            err.put("details", ex.getMessage());
             return ResponseEntity.status(500).body(err);
         }
     }
@@ -287,7 +301,8 @@ public class StudyPlanController {
                     "totalModules", totalModules
             ));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to update module completion", "details", ex.getMessage()));
+            log.error("Failed to update module completion", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to update module completion"));
         }
     }
 
@@ -326,7 +341,8 @@ public class StudyPlanController {
                     "totalModules", totalModules
             ));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch progress", "details", ex.getMessage()));
+            log.error("Failed to fetch progress", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to fetch progress"));
         }
     }
 

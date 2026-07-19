@@ -7,7 +7,9 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Send, Lightbulb, Loader2 } from "lucide-react"
 
-export default function AIChat() {
+type Goal = { id: number; title: string; progress: number; daysLeft: number }
+
+export default function AIChat({ goals = [] }: { goals?: Goal[] }) {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -18,12 +20,19 @@ export default function AIChat() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
 
-  const suggestedQuestions = [
-    "Explain the chain rule with examples",
-    "How do I solve this derivative problem?",
-    "What's the difference between limits and continuity?",
-    "Can you give me practice problems?",
-  ]
+  const suggestedQuestions = goals.length > 0
+    ? [
+        `Explain the basics of ${goals[0].title}`,
+        `What should I focus on first for ${goals[0].title}?`,
+        `Quiz me on ${goals[0].title}`,
+        goals[1] ? `How does ${goals[0].title} relate to ${goals[1].title}?` : `Give me a real-world example of ${goals[0].title}`,
+      ]
+    : [
+        "Explain this concept simply",
+        "Give me a real-world example",
+        "What are common mistakes to avoid?",
+        "Can you quiz me on this?",
+      ]
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return

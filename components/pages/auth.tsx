@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 
 interface AuthProps {
   onAuthenticated: (auth: { token: string; name: string; email: string; role: string }) => void;
+  onBack?: () => void;
 }
 
-export default function Auth({ onAuthenticated }: AuthProps) {
+export default function Auth({ onAuthenticated, onBack }: AuthProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -54,11 +55,20 @@ export default function Auth({ onAuthenticated }: AuthProps) {
   };
 
   return (
-    <div className="w-full h-screen flex items-center justify-center p-6">
+    <div className="w-full h-screen flex flex-col items-center justify-center p-6">
+      {onBack ? (
+        <button
+          onClick={onBack}
+          className="mb-6 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Back to StudyHub
+        </button>
+      ) : null}
       <Card className="w-full max-w-md p-6 bg-card border border-border">
-        <h1 className="text-2xl font-bold mb-4 text-foreground">
-          {mode === "login" ? "Login" : "Create an account"}
-        </h1>
+        <h1 className="text-xl font-bold mb-1 text-foreground">StudyHub</h1>
+        <p className="text-sm text-muted-foreground mb-4">
+          {mode === "login" ? "Welcome back" : "Create your account"}
+        </p>
         {mode === "register" && (
           <div className="mb-3">
             <label className="block text-sm text-muted-foreground mb-1">Name</label>

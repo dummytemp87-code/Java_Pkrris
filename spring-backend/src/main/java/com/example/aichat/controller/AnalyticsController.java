@@ -22,7 +22,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/analytics")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class AnalyticsController {
 
     private final UserRepository userRepository;

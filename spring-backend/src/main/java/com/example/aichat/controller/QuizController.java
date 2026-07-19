@@ -14,6 +14,8 @@ import com.example.aichat.service.OpenAIService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -29,8 +31,9 @@ import com.example.aichat.repo.ModuleCompletionLogRepository;
 
 @RestController
 @RequestMapping("/api/quiz")
-@CrossOrigin(origins = {"http://localhost:3000"})
 public class QuizController {
+
+    private static final Logger log = LoggerFactory.getLogger(QuizController.class);
 
     private final OpenAIService aiService;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -72,9 +75,12 @@ public class QuizController {
                 String quizJson = existing.get().getQuizJson();
                 try {
                     JsonNode node = mapper.readTree(quizJson);
-                    return ResponseEntity.ok(Map.of("quiz", node));
+                    if (node.has("questions") && node.get("questions").isArray() && !node.get("questions").isEmpty()) {
+                        return ResponseEntity.ok(Map.of("quiz", node));
+                    }
+                    // stored quiz is malformed/incomplete -> fall through and regenerate
                 } catch (Exception ignore) {
-                    return ResponseEntity.ok(Map.of("quizText", quizJson));
+                    // stored quiz is invalid JSON (e.g. truncated) -> fall through and regenerate
                 }
             }
 
@@ -138,7 +144,8 @@ public class QuizController {
                 return ResponseEntity.ok(Map.of("quizText", cleaned));
             }
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to generate quiz", "details", ex.getMessage()));
+            log.error("Failed to generate quiz", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to generate quiz"));
         }
     }
 
@@ -195,7 +202,8 @@ public class QuizController {
                     "percent", percent
             ));
         } catch (Exception ex) {
-            return ResponseEntity.status(500).body(Map.of("error", "Failed to submit quiz", "details", ex.getMessage()));
+            log.error("Failed to submit quiz", ex);
+            return ResponseEntity.status(500).body(Map.of("error", "Failed to submit quiz"));
         }
     }
 
