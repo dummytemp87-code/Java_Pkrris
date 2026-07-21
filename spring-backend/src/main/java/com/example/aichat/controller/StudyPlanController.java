@@ -14,6 +14,7 @@ import com.example.aichat.model.Goal;
 import com.example.aichat.repo.GoalRepository;
 import com.example.aichat.model.ModuleCompletionLog;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
+import com.example.aichat.service.SubscriptionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -38,13 +39,15 @@ public class StudyPlanController {
     private final UserRepository userRepository;
     private final GoalRepository goalRepository;
     private final ModuleCompletionLogRepository moduleCompletionLogRepository;
+    private final SubscriptionService subscriptionService;
 
-    public StudyPlanController(OpenAIService aiService, StudyPlanRepository studyPlanRepository, UserRepository userRepository, GoalRepository goalRepository, ModuleCompletionLogRepository moduleCompletionLogRepository) {
+    public StudyPlanController(OpenAIService aiService, StudyPlanRepository studyPlanRepository, UserRepository userRepository, GoalRepository goalRepository, ModuleCompletionLogRepository moduleCompletionLogRepository, SubscriptionService subscriptionService) {
         this.aiService = aiService;
         this.studyPlanRepository = studyPlanRepository;
         this.userRepository = userRepository;
         this.goalRepository = goalRepository;
         this.moduleCompletionLogRepository = moduleCompletionLogRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     @PostMapping(value = "/generate", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -97,6 +100,16 @@ public class StudyPlanController {
                 } catch (Exception parseEx) {
                     // stored plan is invalid JSON (e.g. truncated) -> fall through and regenerate
                 }
+            }
+
+            // No usable cached plan -- about to generate a new one via AI, which requires
+            // an active trial/subscription. A user viewing an already-generated plan above
+            // is never blocked by this, only new generation is gated.
+            if (!subscriptionService.isEntitled(user)) {
+                return ResponseEntity.status(402).body(Map.of(
+                        "error", "Your trial has ended. Upgrade to generate new study plans.",
+                        "code", "SUBSCRIPTION_REQUIRED"
+                ));
             }
 
             List<Map<String, String>> messages = new ArrayList<>();

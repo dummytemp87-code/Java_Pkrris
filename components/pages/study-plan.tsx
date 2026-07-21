@@ -22,6 +22,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false)
 
   const [studyPlan, setStudyPlan] = useState<any[]>([])
   const [goalsList, setGoalsList] = useState<Goal[]>([])
@@ -32,6 +33,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
     const fetchPlan = async () => {
       setLoading(true)
       setError(null)
+      setSubscriptionRequired(false)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -47,6 +49,10 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
             level: 'beginner',
           })
         })
+        if (res.status === 402) {
+          setSubscriptionRequired(true)
+          return
+        }
         const data = await res.json()
         if (!res.ok) throw new Error(data?.error || 'Failed to generate plan')
         const planNode = data?.plan
@@ -167,6 +173,13 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Generating your study plan...</p>
+      ) : subscriptionRequired ? (
+        <Card className="p-6 bg-card border border-border mb-6">
+          <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new study plans.</p>
+          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            View plans
+          </Button>
+        </Card>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : null}

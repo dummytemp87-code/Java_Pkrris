@@ -19,6 +19,10 @@ yarn-error.log*
 # env files
 .env*
 
+# SSH keys accidentally saved into the repo root
+*.key
+*.pem
+
 # vercel
 .vercel
 

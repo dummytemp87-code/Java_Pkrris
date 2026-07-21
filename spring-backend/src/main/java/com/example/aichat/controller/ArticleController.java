@@ -6,6 +6,7 @@ import com.example.aichat.model.User;
 import com.example.aichat.repo.ArticleContentRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.service.OpenAIService;
+import com.example.aichat.service.SubscriptionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -26,11 +27,13 @@ public class ArticleController {
     private final ArticleContentRepository articleRepo;
     private final UserRepository userRepository;
     private final OpenAIService aiService;
+    private final SubscriptionService subscriptionService;
 
-    public ArticleController(ArticleContentRepository articleRepo, UserRepository userRepository, OpenAIService aiService) {
+    public ArticleController(ArticleContentRepository articleRepo, UserRepository userRepository, OpenAIService aiService, SubscriptionService subscriptionService) {
         this.articleRepo = articleRepo;
         this.userRepository = userRepository;
         this.aiService = aiService;
+        this.subscriptionService = subscriptionService;
     }
 
     @PostMapping(value = "/content", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -49,6 +52,13 @@ public class ArticleController {
             Optional<ArticleContent> existing = articleRepo.findByUserAndGoalTitleAndModuleTitle(user, goalTitle, moduleTitle);
             if (existing.isPresent()) {
                 return ResponseEntity.ok(Map.of("content", existing.get().getContentMarkdown()));
+            }
+
+            if (!subscriptionService.isEntitled(user)) {
+                return ResponseEntity.status(402).body(Map.of(
+                        "error", "Your trial has ended. Upgrade to generate new content.",
+                        "code", "SUBSCRIPTION_REQUIRED"
+                ));
             }
 
             List<Map<String, String>> messages = new ArrayList<>();

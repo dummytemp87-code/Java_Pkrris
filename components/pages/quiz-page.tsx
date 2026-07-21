@@ -20,6 +20,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ score: number, total: number, percent: number } | null>(null)
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false)
 
   const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem('token') : null), [])
   const base = useMemo(() => process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080', [])
@@ -30,6 +31,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
     const run = async () => {
       setLoading(true)
       setError(null)
+      setSubscriptionRequired(false)
       try {
         const res = await fetch(`${base}/api/quiz/generate`, {
           method: 'POST',
@@ -39,6 +41,10 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
           },
           body: JSON.stringify({ goalTitle, moduleTitle: module.title, moduleId: module.id })
         })
+        if (res.status === 402) {
+          if (!cancelled) setSubscriptionRequired(true)
+          return
+        }
         const data = await res.json()
         if (!res.ok) throw new Error(data?.error || 'Failed to load quiz')
         const q = data?.quiz || (typeof data?.quizText === 'string' ? JSON.parse(data.quizText) : null)
@@ -101,6 +107,13 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Generating quiz...</p>
+      ) : subscriptionRequired ? (
+        <Card className="p-6 bg-card border border-border">
+          <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new quizzes.</p>
+          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            View plans
+          </Button>
+        </Card>
       ) : error ? (
         <p className="text-sm text-red-600">{error}</p>
       ) : quiz ? (

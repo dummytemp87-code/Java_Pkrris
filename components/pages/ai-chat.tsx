@@ -5,11 +5,11 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Send, Lightbulb, Loader2 } from "lucide-react"
+import { Send, Lightbulb, Loader2, Lock } from "lucide-react"
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
-export default function AIChat({ goals = [] }: { goals?: Goal[] }) {
+export default function AIChat({ goals = [], onNavigate }: { goals?: Goal[]; onNavigate?: (page: string) => void }) {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -19,6 +19,7 @@ export default function AIChat({ goals = [] }: { goals?: Goal[] }) {
   ])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false)
 
   const suggestedQuestions = goals.length > 0
     ? [
@@ -54,6 +55,10 @@ export default function AIChat({ goals = [] }: { goals?: Goal[] }) {
         },
         body: JSON.stringify({ messages: payloadMessages }),
       })
+      if (res.status === 402) {
+        setSubscriptionRequired(true)
+        return
+      }
       if (!res.ok) throw new Error("Failed to get AI response")
       const data = await res.json()
       const reply = (data?.reply ?? "I couldn't generate a response.").toString()
@@ -70,6 +75,23 @@ export default function AIChat({ goals = [] }: { goals?: Goal[] }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (subscriptionRequired) {
+    return (
+      <div className="p-6 md:p-8 max-w-4xl mx-auto h-screen flex flex-col items-center justify-center text-center">
+        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
+          <Lock size={24} className="text-muted-foreground" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Your trial has ended</h2>
+        <p className="text-muted-foreground max-w-sm mb-6">
+          Upgrade to a paid plan to keep chatting with your AI tutor and unlock unlimited AI features.
+        </p>
+        <Button onClick={() => onNavigate?.('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90 px-6">
+          View plans
+        </Button>
+      </div>
+    )
   }
 
   return (

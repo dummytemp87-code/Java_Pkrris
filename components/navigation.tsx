@@ -14,6 +14,7 @@ import {
   X,
   Moon,
   Sun,
+  CreditCard,
 } from "lucide-react"
 
 interface NavigationProps {
@@ -36,6 +37,7 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
     { id: "learning", label: "Learn", icon: BookOpen },
     { id: "chat", label: "AI Tutor", icon: MessageSquare },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "billing", label: "Billing", icon: CreditCard },
     { id: "settings", label: "Settings", icon: Settings },
   ]
 

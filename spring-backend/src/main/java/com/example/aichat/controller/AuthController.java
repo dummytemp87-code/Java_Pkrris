@@ -4,7 +4,9 @@ import com.example.aichat.dto.AuthRequest;
 import com.example.aichat.dto.AuthResponse;
 import com.example.aichat.dto.RegisterRequest;
 import com.example.aichat.dto.ChangePasswordRequest;
+import com.example.aichat.model.Subscription;
 import com.example.aichat.model.User;
+import com.example.aichat.repo.SubscriptionRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.security.JwtService;
 import jakarta.validation.Valid;
@@ -18,6 +20,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 
 @RestController
@@ -25,15 +29,18 @@ import java.util.Map;
 public class AuthController {
 
     private final UserRepository userRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
     public AuthController(UserRepository userRepository,
+                          SubscriptionRepository subscriptionRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
                           AuthenticationManager authenticationManager) {
         this.userRepository = userRepository;
+        this.subscriptionRepository = subscriptionRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
@@ -50,6 +57,14 @@ public class AuthController {
         u.setEmail(req.getEmail());
         u.setPassword(passwordEncoder.encode(req.getPassword()));
         u = userRepository.save(u);
+
+        Subscription sub = new Subscription();
+        sub.setUser(u);
+        sub.setPlan("TRIAL");
+        sub.setStatus("TRIALING");
+        sub.setTrialEndsAt(Instant.now().plus(3, ChronoUnit.DAYS));
+        subscriptionRepository.save(sub);
+
         String token = jwtService.generateToken(u.getEmail(), u.getTokenVersion() != null ? u.getTokenVersion() : 0);
         return ResponseEntity.ok(new AuthResponse(token, u.getName(), u.getEmail(), u.getRole()));
     }

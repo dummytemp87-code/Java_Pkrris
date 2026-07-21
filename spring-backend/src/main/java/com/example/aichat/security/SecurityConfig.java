@@ -43,7 +43,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/db/health").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/ai-chat").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/billing/webhook").permitAll()
                         .anyRequest().authenticated()
                 )
                 .authenticationProvider(authenticationProvider())

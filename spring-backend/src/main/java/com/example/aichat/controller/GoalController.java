@@ -12,6 +12,7 @@ import com.example.aichat.repo.QuizContentRepository;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.service.OpenAIService;
+import com.example.aichat.service.SubscriptionService;
 import com.example.aichat.service.SyllabusTextExtractor;
 import com.example.aichat.service.UnsupportedSyllabusFormatException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,12 +54,13 @@ public class GoalController {
     private final ModuleCompletionLogRepository moduleCompletionLogRepository;
     private final OpenAIService aiService;
     private final SyllabusTextExtractor syllabusTextExtractor;
+    private final SubscriptionService subscriptionService;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository, QuizContentRepository quizContentRepository, ModuleCompletionLogRepository moduleCompletionLogRepository, OpenAIService aiService, SyllabusTextExtractor syllabusTextExtractor) {
+    public GoalController(GoalRepository goalRepository, UserRepository userRepository, StudyPlanRepository studyPlanRepository, ArticleContentRepository articleContentRepository, VideoContentRepository videoContentRepository, QuizContentRepository quizContentRepository, ModuleCompletionLogRepository moduleCompletionLogRepository, OpenAIService aiService, SyllabusTextExtractor syllabusTextExtractor, SubscriptionService subscriptionService) {
         this.goalRepository = goalRepository;
         this.userRepository = userRepository;
         this.studyPlanRepository = studyPlanRepository;
@@ -68,6 +70,7 @@ public class GoalController {
         this.moduleCompletionLogRepository = moduleCompletionLogRepository;
         this.aiService = aiService;
         this.syllabusTextExtractor = syllabusTextExtractor;
+        this.subscriptionService = subscriptionService;
     }
 
     @GetMapping
@@ -126,6 +129,14 @@ public class GoalController {
     public ResponseEntity<?> analyzeSyllabus(@AuthenticationPrincipal UserDetails principal, @RequestParam("file") MultipartFile file) {
         try {
             if (principal == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+            if (user == null) return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+            if (!subscriptionService.isEntitled(user)) {
+                return ResponseEntity.status(402).body(Map.of(
+                        "error", "Your trial has ended. Upgrade to analyze more syllabuses.",
+                        "code", "SUBSCRIPTION_REQUIRED"
+                ));
+            }
             if (file == null || file.isEmpty()) return ResponseEntity.badRequest().body(Map.of("error", "No file uploaded"));
 
             String filename = file.getOriginalFilename();

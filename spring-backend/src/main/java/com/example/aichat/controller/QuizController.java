@@ -11,6 +11,7 @@ import com.example.aichat.repo.QuizContentRepository;
 import com.example.aichat.repo.StudyPlanRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.service.OpenAIService;
+import com.example.aichat.service.SubscriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -42,19 +43,22 @@ public class QuizController {
     private final StudyPlanRepository studyPlanRepository;
     private final GoalRepository goalRepository;
     private final ModuleCompletionLogRepository moduleCompletionLogRepository;
+    private final SubscriptionService subscriptionService;
 
     public QuizController(OpenAIService aiService,
                           QuizContentRepository quizRepo,
                           UserRepository userRepository,
                           StudyPlanRepository studyPlanRepository,
                           GoalRepository goalRepository,
-                          ModuleCompletionLogRepository moduleCompletionLogRepository) {
+                          ModuleCompletionLogRepository moduleCompletionLogRepository,
+                          SubscriptionService subscriptionService) {
         this.aiService = aiService;
         this.quizRepo = quizRepo;
         this.userRepository = userRepository;
         this.studyPlanRepository = studyPlanRepository;
         this.goalRepository = goalRepository;
         this.moduleCompletionLogRepository = moduleCompletionLogRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     @PostMapping(value = "/generate", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -82,6 +86,13 @@ public class QuizController {
                 } catch (Exception ignore) {
                     // stored quiz is invalid JSON (e.g. truncated) -> fall through and regenerate
                 }
+            }
+
+            if (!subscriptionService.isEntitled(user)) {
+                return ResponseEntity.status(402).body(Map.of(
+                        "error", "Your trial has ended. Upgrade to generate new quizzes.",
+                        "code", "SUBSCRIPTION_REQUIRED"
+                ));
             }
 
             // Build prompt

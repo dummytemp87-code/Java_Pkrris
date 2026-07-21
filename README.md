@@ -37,6 +37,9 @@ Required environment variables:
 | `YOUTUBE_API_KEY` | YouTube Data API key, used for lesson video search |
 | `GEMINI_API_KEY` | Google Gemini API key, used for chat/quiz/study-plan/article generation |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins. Defaults to `http://localhost:3000` for local dev |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay API credentials (Dashboard → Settings → API Keys). Test mode keys work for development. |
+| `RAZORPAY_WEBHOOK_SECRET` | Set when configuring the webhook endpoint (Dashboard → Settings → Webhooks) — verifies incoming webhook calls are genuinely from Razorpay. |
+| `RAZORPAY_PLAN_STARTER` / `RAZORPAY_PLAN_PRO` | Razorpay Plan IDs (Dashboard → Subscriptions → Plans, created manually — ₹199/mo and ₹399/mo monthly plans). |
 
 The app fails fast at startup if `DB_USERNAME`, `DB_PASSWORD`, or `JWT_SECRET` are missing —
 this is intentional, so it can never silently run against a stale or default credential.

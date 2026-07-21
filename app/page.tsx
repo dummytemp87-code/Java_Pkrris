@@ -9,6 +9,7 @@ import LearningScreen from '@/components/pages/learning-screen'
 import QuizPage from '@/components/pages/quiz-page'
 import AIChat from '@/components/pages/ai-chat'
 import Analytics from '@/components/pages/analytics'
+import Billing from '@/components/pages/billing'
 import Settings from '@/components/pages/settings'
 import Auth from '@/components/pages/auth'
 import Landing from '@/components/pages/landing'
@@ -170,9 +171,11 @@ export default function Home() {
           <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
         )
       case 'chat':
-        return <AIChat goals={goals} />
+        return <AIChat goals={goals} onNavigate={setCurrentPage} />
       case 'analytics':
         return <Analytics />
+      case 'billing':
+        return <Billing />
       case 'settings':
         return <Settings />
       default:
