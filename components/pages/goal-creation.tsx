@@ -3,9 +3,11 @@
 import type React from "react"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Upload, Plus, X } from "lucide-react"
+import { celebrateSmall } from "@/lib/confetti"
 
 interface Goal {
   id: number;
@@ -95,13 +97,15 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
       })
       const data = await res.json();
       if (!res.ok) {
-        alert(data?.error || 'Failed to create goal');
+        toast.error(data?.error || 'Failed to create goal');
         return;
       }
       setGoals((prev) => [...prev, data]);
+      celebrateSmall();
+      toast.success(`"${data?.title || goalTitle}" created — let's get started!`);
       onNavigate("dashboard");
     } catch (e) {
-      alert('Failed to create goal');
+      toast.error('Failed to create goal');
     }
   }
 

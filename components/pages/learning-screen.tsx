@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, MessageSquare, FileText, Save, Loader2, ArrowLeft } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { celebrateBig, celebrateSmall } from "@/lib/confetti"
 
 interface LearningScreenProps {
   onNavigate: (page: string) => void;
@@ -176,6 +179,15 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
         const total = Number(data?.totalModules ?? 0)
         const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
         setModuleProgress({ percent, done, total })
+        if (newVal) {
+          if (percent >= 100) {
+            celebrateBig()
+            toast.success(`🎉 "${selectedGoalTitle}" complete! Amazing work.`)
+          } else {
+            celebrateSmall()
+            toast.success("Module complete — nice work!")
+          }
+        }
         if (onProgressUpdated) await onProgressUpdated()
       }
     } catch {}
@@ -286,7 +298,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
             <TabsContent value="video" className="mt-4">
               <Card className="p-4 bg-card border border-border">
                 {videoLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading video...</p>
+                  <Skeleton className="aspect-video w-full rounded-lg" />
                 ) : videoError ? (
                   <p className="text-sm text-red-600">{videoError}</p>
                 ) : video && video.videoId ? (
@@ -315,7 +327,12 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
             <TabsContent value="article" className="mt-4">
               <Card className="p-6 bg-card border border-border">
                 {articleLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading article...</p>
+                  <div className="space-y-3">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-4/5" />
+                  </div>
                 ) : articleError ? (
                   <p className="text-sm text-red-600">{articleError}</p>
                 ) : articleContent ? (

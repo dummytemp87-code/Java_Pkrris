@@ -1,10 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import Script from "next/script"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { CheckCircle2, Loader2 } from "lucide-react"
+import { celebrateBig } from "@/lib/confetti"
 
 type BillingStatus = {
   plan: string
@@ -38,8 +41,9 @@ export default function Billing() {
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [subscribing, setSubscribing] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [scriptReady, setScriptReady] = useState(false)
+  const wasActive = useRef(false)
+  const isFirstFetch = useRef(true)
 
   const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -50,7 +54,16 @@ export default function Billing() {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       })
       const data = await res.json()
-      if (res.ok) setStatus(data)
+      if (res.ok) {
+        const nowActive = data?.status === 'ACTIVE'
+        if (nowActive && !wasActive.current && !isFirstFetch.current) {
+          celebrateBig()
+          toast.success("Subscription activated — you're all set!")
+        }
+        wasActive.current = nowActive
+        isFirstFetch.current = false
+        setStatus(data)
+      }
     } catch {
       // ignore, keep last known status
     } finally {
@@ -71,10 +84,9 @@ export default function Billing() {
 
   const handleSubscribe = async (planId: string) => {
     if (!scriptReady || !window.Razorpay) {
-      setError("Payment widget is still loading, try again in a moment.")
+      toast.error("Payment widget is still loading, try again in a moment.")
       return
     }
-    setError(null)
     setSubscribing(planId)
     try {
       const res = await fetch(`${base}/api/billing/subscribe`, {
@@ -87,7 +99,7 @@ export default function Billing() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data?.error || 'Failed to start checkout')
+        toast.error(data?.error || 'Failed to start checkout')
         return
       }
       const rzp = new window.Razorpay({
@@ -106,7 +118,7 @@ export default function Billing() {
       })
       rzp.open()
     } catch (e) {
-      setError('Failed to start checkout')
+      toast.error('Failed to start checkout')
     } finally {
       setSubscribing(null)
     }
@@ -124,8 +136,12 @@ export default function Billing() {
         <p className="text-muted-foreground">Manage your StudyHub subscription</p>
       </div>
 
-      {!loading && (
+      {loading ? (
         <Card className="p-6 bg-card border border-border mb-8">
+          <Skeleton className="h-4 w-64" />
+        </Card>
+      ) : (
+        <Card className="p-6 bg-card border border-border mb-8 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
           {isActive ? (
             <p className="text-sm font-medium text-foreground">
               You're on the <span className="capitalize">{status?.plan?.toLowerCase()}</span> plan. Thanks for subscribing!
@@ -143,13 +159,13 @@ export default function Billing() {
         </Card>
       )}
 
-      {error && (
-        <p className="text-sm text-destructive mb-6">{error}</p>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {PLANS.map((plan) => (
-          <Card key={plan.id} className="p-6 bg-card border border-border flex flex-col">
+        {PLANS.map((plan, idx) => (
+          <Card
+            key={plan.id}
+            className="p-6 bg-card border border-border flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500"
+            style={{ animationDelay: `${idx * 100}ms` }}
+          >
             <h3 className="text-xl font-bold text-foreground mb-1">{plan.name}</h3>
             <p className="text-3xl font-bold text-foreground mb-4">
               {plan.price}

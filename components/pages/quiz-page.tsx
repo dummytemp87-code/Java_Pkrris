@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { celebrateBig, celebrateSmall } from '@/lib/confetti'
 
 interface Module {
   id: number
@@ -84,7 +87,17 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || 'Failed to submit quiz')
-      setResult({ score: data.score ?? 0, total: data.total ?? 0, percent: data.percent ?? 0 })
+      const percent = data.percent ?? 0
+      setResult({ score: data.score ?? 0, total: data.total ?? 0, percent })
+      if (percent >= 80) {
+        celebrateBig()
+        toast.success(`${percent}% — great work!`)
+      } else if (percent >= 50) {
+        celebrateSmall()
+        toast.success(`Quiz complete — ${percent}%`)
+      } else {
+        toast(`Quiz complete — ${percent}%. Review and try again anytime.`)
+      }
       if (onProgressUpdated) await onProgressUpdated()
     } catch (e: any) {
       setError(e?.message || 'Failed to submit quiz')
@@ -106,7 +119,21 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Generating quiz...</p>
+        <Card className="p-4 bg-card border border-border">
+          <Skeleton className="h-6 w-40 mb-4" />
+          <div className="space-y-4">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="p-3 rounded-lg border border-border space-y-3">
+                <Skeleton className="h-4 w-4/5" />
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-3/5" />
+                  <Skeleton className="h-3 w-2/5" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       ) : subscriptionRequired ? (
         <Card className="p-6 bg-card border border-border">
           <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new quizzes.</p>

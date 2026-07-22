@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { CheckCircle2, Circle, ChevronRight } from "lucide-react"
 import TaskDetailsModal from "./task-details-modal"
 
@@ -142,13 +143,25 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
           <p className="text-muted-foreground text-sm">Choose a goal to view its study plan</p>
         </div>
         {loadingGoals ? (
-          <p className="text-sm text-muted-foreground">Loading your goals...</p>
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <Card key={i} className="p-4 border border-border">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-40" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                </div>
+              </Card>
+            ))}
+          </div>
         ) : goalsList.length === 0 ? (
           <p className="text-sm text-muted-foreground">No goals yet. Create one from Goals page.</p>
         ) : (
           <div className="space-y-3">
             {goalsList.map((g) => (
-              <Card key={g.id} className="p-4 hover:bg-muted/40 cursor-pointer border border-border" onClick={() => onSelectGoal && onSelectGoal(g)}>
+              <Card key={g.id} className="p-4 hover:bg-muted/40 hover:-translate-y-0.5 transition-all cursor-pointer border border-border animate-in fade-in-0 slide-in-from-bottom-2 duration-500" onClick={() => onSelectGoal && onSelectGoal(g)}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-foreground">{g.title}</h3>
@@ -172,7 +185,27 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Generating your study plan...</p>
+        <div className="space-y-6">
+          {[0, 1].map((d) => (
+            <div key={d}>
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[0, 1].map((m) => (
+                  <Card key={m} className="p-4">
+                    <Skeleton className="h-3 w-20 mb-3" />
+                    <Skeleton className="h-4 w-4/5" />
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : subscriptionRequired ? (
         <Card className="p-6 bg-card border border-border mb-6">
           <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new study plans.</p>
@@ -186,7 +219,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
 
       <div className="space-y-6">
         {studyPlan.map((day, dayIndex) => (
-          <div key={dayIndex}>
+          <div key={dayIndex} className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-foreground">{day.day}</h2>
@@ -201,7 +234,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
               {day.modules.map((module: any) => (
                 <Card
                   key={module.id}
-                  className={`p-4 cursor-pointer transition-all hover:shadow-md ${getTypeColor(module.type)}`}
+                  className={`p-4 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${getTypeColor(module.type)}`}
                   onClick={() => handleModuleClick(module)}
                 >
                   <div className="flex items-start justify-between gap-4">

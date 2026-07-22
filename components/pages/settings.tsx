@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Bell, Lock, User, Palette, X, Gift, Copy, Check } from "lucide-react"
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
@@ -79,11 +81,9 @@ export default function Settings() {
 
   const [loadingSettings, setLoadingSettings] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [backendError, setBackendError] = useState<string | null>(null)
 
   const [profileLoading, setProfileLoading] = useState(false)
-  const [profileError, setProfileError] = useState<string | null>(null)
-  const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
+  const [profileSaving, setProfileSaving] = useState(false)
   const [profileName, setProfileName] = useState("")
   const [profileEmail, setProfileEmail] = useState("")
   const [referralCode, setReferralCode] = useState<string | null>(null)
@@ -92,13 +92,10 @@ export default function Settings() {
   const [pwdCurrent, setPwdCurrent] = useState("")
   const [pwdNew, setPwdNew] = useState("")
   const [pwdStatus, setPwdStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [pwdMessage, setPwdMessage] = useState<string | null>(null)
-  const [securityMessage, setSecurityMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
       setLoadingSettings(true)
-      setBackendError(null)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -112,7 +109,7 @@ export default function Settings() {
           if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(languages))
         }
       } catch (e: any) {
-        setBackendError(e?.message || 'Failed to load settings')
+        toast.error(e?.message || 'Failed to load settings')
       } finally {
         setLoadingSettings(false)
       }
@@ -123,7 +120,6 @@ export default function Settings() {
   useEffect(() => {
     const loadProfile = async () => {
       setProfileLoading(true)
-      setProfileError(null)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -133,7 +129,7 @@ export default function Settings() {
         setProfileName(data?.name || '')
         setProfileEmail(data?.email || '')
       } catch (e: any) {
-        setProfileError(e?.message || 'Failed to load profile')
+        toast.error(e?.message || 'Failed to load profile')
       } finally {
         setProfileLoading(false)
       }
@@ -173,7 +169,6 @@ export default function Settings() {
 
   const handleSave = async () => {
     setSaveStatus('saving')
-    setBackendError(null)
     try {
       const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -193,9 +188,10 @@ export default function Settings() {
       }
       if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(settings.languages))
       setSaveStatus('saved')
+      toast.success('Settings saved')
       setTimeout(() => setSaveStatus('idle'), 1200)
     } catch (e: any) {
-      setBackendError(e?.message || 'Failed to save settings')
+      toast.error(e?.message || 'Failed to save settings')
       setSaveStatus('error')
     }
   }
@@ -215,9 +211,6 @@ export default function Settings() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
         <p className="text-muted-foreground">Customize your learning experience</p>
-        {loadingSettings ? <p className="text-xs text-muted-foreground mt-2">Loading settings...</p> : null}
-        {backendError ? <p className="text-xs text-red-600 mt-2">{backendError}</p> : null}
-        {saveStatus === 'saved' ? <p className="text-xs text-green-600 mt-2">Saved</p> : null}
       </div>
 
       <div className="space-y-6">
@@ -227,6 +220,18 @@ export default function Settings() {
             <User className="text-primary" size={24} />
             <h2 className="text-xl font-bold text-foreground">Profile</h2>
           </div>
+          {profileLoading ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            </div>
+          ) : (
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-foreground mb-2">Full Name</label>
@@ -246,15 +251,11 @@ export default function Settings() {
                 className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            {profileError ? <p className="text-xs text-red-600">{profileError}</p> : null}
-            {profileSuccess ? <p className="text-xs text-green-600">{profileSuccess}</p> : null}
             <Button
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              disabled={profileLoading}
+              disabled={profileSaving}
               onClick={async () => {
-                setProfileLoading(true)
-                setProfileError(null)
-                setProfileSuccess(null)
+                setProfileSaving(true)
                 try {
                   const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
                   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -268,17 +269,18 @@ export default function Settings() {
                   if (data?.token) {
                     localStorage.setItem('token', data.token)
                   }
-                  setProfileSuccess('Profile updated')
+                  toast.success('Profile updated')
                 } catch (e: any) {
-                  setProfileError(e?.message || 'Failed to update profile')
+                  toast.error(e?.message || 'Failed to update profile')
                 } finally {
-                  setProfileLoading(false)
+                  setProfileSaving(false)
                 }
               }}
             >
-              {profileLoading ? 'Updating...' : 'Update Profile'}
+              {profileSaving ? 'Updating...' : 'Update Profile'}
             </Button>
           </div>
+          )}
         </Card>
 
         {/* Referral */}
@@ -465,13 +467,11 @@ export default function Settings() {
                 placeholder="••••••••"
               />
             </div>
-            {pwdMessage ? <p className={`text-xs ${pwdStatus === 'saved' ? 'text-green-600' : 'text-red-600'}`}>{pwdMessage}</p> : null}
             <Button
               className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
               disabled={pwdStatus === 'saving'}
               onClick={async () => {
                 setPwdStatus('saving')
-                setPwdMessage(null)
                 try {
                   const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
                   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -484,12 +484,12 @@ export default function Settings() {
                   if (!res.ok) throw new Error(data?.error || 'Failed to change password')
                   if (data?.token) localStorage.setItem('token', data.token)
                   setPwdStatus('saved')
-                  setPwdMessage('Password changed')
+                  toast.success('Password changed')
                   setPwdCurrent("")
                   setPwdNew("")
                 } catch (e: any) {
                   setPwdStatus('error')
-                  setPwdMessage(e?.message || 'Failed to change password')
+                  toast.error(e?.message || 'Failed to change password')
                 } finally {
                   setTimeout(() => setPwdStatus('idle'), 1500)
                 }
@@ -498,7 +498,6 @@ export default function Settings() {
               {pwdStatus === 'saving' ? 'Changing...' : 'Change Password'}
             </Button>
 
-            {securityMessage ? <p className="text-xs text-green-600">{securityMessage}</p> : null}
             <Button
               className="w-full bg-muted text-foreground hover:bg-muted/80"
               onClick={async () => {
@@ -509,10 +508,9 @@ export default function Settings() {
                   const data = await res.json().catch(() => ({}))
                   if (!res.ok) throw new Error(data?.error || 'Failed to sign out all devices')
                   if (data?.token) localStorage.setItem('token', data.token)
-                  setSecurityMessage('All devices signed out (current session refreshed)')
-                  setTimeout(() => setSecurityMessage(null), 1800)
+                  toast.success('All devices signed out (current session refreshed)')
                 } catch (e: any) {
-                  setSecurityMessage(e?.message || 'Failed to sign out all devices')
+                  toast.error(e?.message || 'Failed to sign out all devices')
                 }
               }}
             >
