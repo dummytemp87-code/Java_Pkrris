@@ -13,12 +13,14 @@ import Billing from '@/components/pages/billing'
 import Settings from '@/components/pages/settings'
 import Auth from '@/components/pages/auth'
 import Landing from '@/components/pages/landing'
+import { apiFetch } from '@/lib/api'
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
 export default function Home() {
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [view, setView] = useState<'landing' | 'auth' | 'app'>('landing')
+  const [authChecked, setAuthChecked] = useState(false)
   const [goals, setGoals] = useState<Goal[]>([])
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0)
 
@@ -39,7 +41,7 @@ export default function Home() {
 
   useEffect(() => {
     const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-    if (!t) return
+    if (!t) { setAuthChecked(true); return }
     const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
     fetch(`${base}/api/auth/me`, { headers: { Authorization: `Bearer ${t}` } })
       .then(res => res.ok ? res.json() : null)
@@ -48,17 +50,21 @@ export default function Home() {
           setAuth({ token: t, name: data.name, email: data.email, role: data.role })
           setView('app')
         } else {
+          // Token is invalid/expired -- clear it so it doesn't linger forever
+          // silently failing on every future load.
+          localStorage.removeItem('token')
           setAuth({ token: null })
         }
       })
       .catch(() => setAuth({ token: null }))
+      .finally(() => setAuthChecked(true))
   }, [])
 
   useEffect(() => {
     const t = auth.token
     if (!t) return
     const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
-    fetch(`${base}/api/goals`, { headers: { Authorization: `Bearer ${t}` } })
+    apiFetch(`${base}/api/goals`)
       .then(res => res.ok ? res.json() : [])
       .then((list) => setGoals(Array.isArray(list) ? list : []))
       .catch(() => setGoals([]))
@@ -145,7 +151,13 @@ export default function Home() {
           />
         )
       case 'goals':
-        return <GoalCreation setGoals={setGoals} onNavigate={setCurrentPage} />
+        return (
+          <GoalCreation
+            setGoals={setGoals}
+            onNavigate={setCurrentPage}
+            onGoalCreated={(goal: Goal) => { setSelectedGoal(goal); setCurrentPage('study-plan'); }}
+          />
+        )
       case 'study-plan':
         return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
       case 'learning':
@@ -183,10 +195,20 @@ export default function Home() {
     }
   }
 
+  if (!authChecked) {
+    // Avoid flashing the marketing Landing page for returning users while the
+    // token-restore check is still in flight.
+    return <div className='h-screen bg-background' />
+  }
+
   if (auth.token) {
     return (
       <div className='flex h-screen bg-background'>
-        <Navigation currentPage={currentPage} onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }} />
+        <Navigation
+          currentPage={currentPage}
+          onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }}
+          showLearn={!!learningScreenState.selectedModule}
+        />
         <main className='flex-1 overflow-auto'>{renderPage()}</main>
       </div>
     )

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CheckCircle2, Clock, Zap, TrendingUp, X, Target, Sparkles, Flame, Trophy, Star } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
+import { apiFetch } from "@/lib/api"
 
 interface Goal {
   id: number;
@@ -38,18 +39,19 @@ export default function Dashboard({
   const [billingStatus, setBillingStatus] = useState<{ plan: string; status: string; trialEndsAt?: string | null } | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     const run = async () => {
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const res = await fetch(`${base}/api/billing/status`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+        const res = await apiFetch(`${base}/api/billing/status`)
         const data = await res.json().catch(() => ({}))
-        if (res.ok) setBillingStatus(data)
+        if (!cancelled && res.ok) setBillingStatus(data)
       } catch {
         // ignore -- banner just won't render
       }
     }
     run()
+    return () => { cancelled = true }
   }, [])
 
   const trialDaysLeft = (() => {
@@ -64,12 +66,7 @@ export default function Dashboard({
       setLoadingSummary(true)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const res = await fetch(`${base}/api/dashboard/summary`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          }
-        })
+        const res = await apiFetch(`${base}/api/dashboard/summary`)
         const data = await res.json().catch(() => ({}))
         if (!cancelled && res.ok) {
           setTasksCompletedToday(Number(data?.tasksCompletedToday || 0))
@@ -144,13 +141,13 @@ export default function Dashboard({
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="mb-8 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+      <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h1>
         <p className="text-muted-foreground">{motivationalLine}</p>
       </div>
 
       {trialDaysLeft !== null && (
-        <Card className="p-4 bg-primary/5 border border-primary/20 mb-8 flex items-center justify-between flex-wrap gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+        <Card className="p-4 bg-primary/5 border border-primary/20 mb-8 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Sparkles className="text-primary shrink-0" size={20} />
             <p className="text-sm font-medium text-foreground">
@@ -181,7 +178,7 @@ export default function Dashboard({
           ))
         ) : (
           <>
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Tasks Completed</p>
@@ -191,7 +188,7 @@ export default function Dashboard({
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 delay-75">
+            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Study Time</p>
@@ -201,17 +198,17 @@ export default function Dashboard({
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 delay-150">
+            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Streak</p>
                   <p className={`text-3xl font-bold ${streakColor}`}>{streakDays} days</p>
                 </div>
-                <Flame className={`${streakColor} ${streakDays > 0 ? "animate-in zoom-in-50 duration-700" : ""}`} size={32} fill={streakDays >= 3 ? "currentColor" : "none"} />
+                <Flame className={`${streakColor} ${streakDays > 0 ? "animate-in zoom-in-50 duration-300" : ""}`} size={32} fill={streakDays >= 3 ? "currentColor" : "none"} />
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500 delay-200">
+            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Overall Progress</p>
@@ -224,33 +221,37 @@ export default function Dashboard({
         )}
       </div>
 
-      {/* Achievements */}
-      <Card className="p-5 bg-card border border-border mb-8 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
-        <div className="flex items-center gap-2 mb-3">
-          <Trophy size={16} className="text-muted-foreground" />
-          <h2 className="text-sm font-semibold text-foreground">Achievements</h2>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {achievements.map((a) => {
-            const Icon = a.icon
-            return (
-              <Badge
-                key={a.id}
-                variant={a.unlocked ? "success" : "outline"}
-                className={a.unlocked ? "" : "opacity-50"}
-              >
-                <Icon size={12} />
-                {a.label}
-              </Badge>
-            )
-          })}
-        </div>
-      </Card>
+      {/* Achievements -- hidden until there's at least one win to show; a wall of
+          locked grey badges on a brand-new user's very first visit reads as
+          discouraging rather than motivating. */}
+      {goals.length > 0 && (
+        <Card className="p-5 bg-card border border-border mb-8">
+          <div className="flex items-center gap-2 mb-3">
+            <Trophy size={16} className="text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-foreground">Achievements</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {achievements.map((a) => {
+              const Icon = a.icon
+              return (
+                <Badge
+                  key={a.id}
+                  variant={a.unlocked ? "success" : "outline"}
+                  className={a.unlocked ? "" : "opacity-50"}
+                >
+                  <Icon size={12} />
+                  {a.label}
+                </Badge>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Daily Tasks */}
         <div className="lg:col-span-2">
-          <Card className="p-6 bg-card border border-border animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+          <Card className="p-6 bg-card border border-border">
             <h2 className="text-xl font-bold text-foreground mb-4">Today's Tasks</h2>
             {loadingSummary ? (
               <div className="space-y-3">
@@ -298,7 +299,7 @@ export default function Dashboard({
 
         {/* Active Goals */}
         <div>
-          <Card className="p-6 bg-card border border-border animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+          <Card className="p-6 bg-card border border-border">
             <h2 className="text-xl font-bold text-foreground mb-4">Active Goals</h2>
             {goals.length === 0 ? (
               <div className="text-center py-6">

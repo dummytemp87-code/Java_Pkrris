@@ -141,7 +141,7 @@ export default function Billing() {
           <Skeleton className="h-4 w-64" />
         </Card>
       ) : (
-        <Card className="p-6 bg-card border border-border mb-8 animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+        <Card className="p-6 bg-card border border-border mb-8 animate-in fade-in-0 duration-200">
           {isActive ? (
             <p className="text-sm font-medium text-foreground">
               You're on the <span className="capitalize">{status?.plan?.toLowerCase()}</span> plan. Thanks for subscribing!
@@ -160,11 +160,10 @@ export default function Billing() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {PLANS.map((plan, idx) => (
+        {PLANS.map((plan) => (
           <Card
             key={plan.id}
-            className="p-6 bg-card border border-border flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 slide-in-from-bottom-2 duration-500"
-            style={{ animationDelay: `${idx * 100}ms` }}
+            className="p-6 bg-card border border-border flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200"
           >
             <h3 className="text-xl font-bold text-foreground mb-1">{plan.name}</h3>
             <p className="text-3xl font-bold text-foreground mb-4">

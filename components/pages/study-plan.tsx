@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CheckCircle2, Circle, ChevronRight } from "lucide-react"
 import TaskDetailsModal from "./task-details-modal"
+import { apiFetch } from "@/lib/api"
 
 interface Module {
   id: number;
@@ -31,37 +32,36 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
 
   useEffect(() => {
     if (!goal?.title) return
+    let cancelled = false
     const fetchPlan = async () => {
       setLoading(true)
       setError(null)
       setSubscriptionRequired(false)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const res = await fetch(`${base}/api/study-plan/generate`, {
+        const res = await apiFetch(`${base}/api/study-plan/generate`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             goalTitle: goal?.title || 'General Study',
             days: goal?.daysLeft ? Math.max(1, goal.daysLeft) : 7,
             level: 'beginner',
           })
         })
+        if (cancelled) return
         if (res.status === 402) {
           setSubscriptionRequired(true)
           return
         }
         const data = await res.json()
+        if (cancelled) return
         if (!res.ok) throw new Error(data?.error || 'Failed to generate plan')
         const planNode = data?.plan
         if (planNode?.days && Array.isArray(planNode.days)) {
           const normalized = planNode.days.map((d: any, i: number) => ({
             ...d,
             day: `Day ${i + 1}`,
-            modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
+            modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: (m.type === 'article' ? 'video' : m.type) || 'video' })) : []
           }))
           setStudyPlan(normalized)
         } else {
@@ -70,38 +70,40 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
             const normalized = parsed.days.map((d: any, i: number) => ({
               ...d,
               day: `Day ${i + 1}`,
-              modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: m.type === 'article' ? 'video' : m.type })) : []
+              modules: Array.isArray(d.modules) ? d.modules.map((m: any) => ({ ...m, type: (m.type === 'article' ? 'video' : m.type) || 'video' })) : []
             }))
             setStudyPlan(normalized)
           }
         }
       } catch (e: any) {
-        setError(e?.message || 'Failed to load study plan')
+        if (!cancelled) setError(e?.message || 'Failed to load study plan')
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
     fetchPlan()
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goal?.title, goal?.daysLeft])
 
   useEffect(() => {
     if (goal?.title) return
+    let cancelled = false
     const fetchGoals = async () => {
       setLoadingGoals(true)
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const res = await fetch(`${base}/api/goals`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+        const res = await apiFetch(`${base}/api/goals`)
         const list = await res.json()
-        setGoalsList(Array.isArray(list) ? list : [])
+        if (!cancelled) setGoalsList(Array.isArray(list) ? list : [])
       } catch {
-        setGoalsList([])
+        if (!cancelled) setGoalsList([])
       } finally {
-        setLoadingGoals(false)
+        if (!cancelled) setLoadingGoals(false)
       }
     }
     fetchGoals()
+    return () => { cancelled = true }
   }, [goal?.title])
 
   const handleModuleClick = (module: Module) => {
@@ -132,6 +134,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
   }
 
   const getTypeLabel = (type: string) => {
+    if (!type) return "Module"
     return type.charAt(0).toUpperCase() + type.slice(1)
   }
 
@@ -157,11 +160,16 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
             ))}
           </div>
         ) : goalsList.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No goals yet. Create one from Goals page.</p>
+          <div className="text-center py-6">
+            <p className="text-sm text-muted-foreground mb-4">No goals yet.</p>
+            <Button onClick={() => onNavigate('goals')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Create a goal
+            </Button>
+          </div>
         ) : (
           <div className="space-y-3">
             {goalsList.map((g) => (
-              <Card key={g.id} className="p-4 hover:bg-muted/40 hover:-translate-y-0.5 transition-all cursor-pointer border border-border animate-in fade-in-0 slide-in-from-bottom-2 duration-500" onClick={() => onSelectGoal && onSelectGoal(g)}>
+              <Card key={g.id} className="p-4 hover:bg-muted/40 hover:-translate-y-0.5 transition-all cursor-pointer border border-border animate-in fade-in-0 duration-200" onClick={() => onSelectGoal && onSelectGoal(g)}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-foreground">{g.title}</h3>
@@ -219,7 +227,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
 
       <div className="space-y-6">
         {studyPlan.map((day, dayIndex) => (
-          <div key={dayIndex} className="animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
+          <div key={dayIndex} className="animate-in fade-in-0 duration-200">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1">
                 <h2 className="text-xl font-bold text-foreground">{day.day}</h2>

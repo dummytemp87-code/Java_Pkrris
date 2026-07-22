@@ -62,6 +62,9 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
             Log in
           </Button>
         </div>
+        <p className="text-sm text-muted-foreground mt-4">
+          Start with a free 3-day trial — no card required.
+        </p>
       </section>
 
       {/* Features */}

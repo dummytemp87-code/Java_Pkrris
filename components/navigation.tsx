@@ -20,9 +20,10 @@ import {
 interface NavigationProps {
   currentPage: string
   onNavigate: (page: string) => void
+  showLearn?: boolean
 }
 
-export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
+export default function Navigation({ currentPage, onNavigate, showLearn }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -34,7 +35,10 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "goals", label: "Goals", icon: Target },
     { id: "study-plan", label: "Study Plan", icon: Calendar },
-    { id: "learning", label: "Learn", icon: BookOpen },
+    // "Learn" is only a meaningful, distinct option once a module has actually
+    // been started (it resumes it) -- until then it's functionally identical
+    // to "Study Plan", which reads as a confusing duplicate to new users.
+    ...(showLearn ? [{ id: "learning", label: "Learn", icon: BookOpen }] : []),
     { id: "chat", label: "AI Tutor", icon: MessageSquare },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "billing", label: "Billing", icon: CreditCard },

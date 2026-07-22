@@ -84,10 +84,17 @@ public class AuthController {
         // A referred signup gets a longer trial (7 days instead of 3) as their half of the
         // double-sided referral reward; the referrer's reward is credited later, only once
         // this new user actually converts to paid (see BillingController's webhook handler).
+        // Redemptions per code are capped -- not a fix for trial abuse in general (there's no
+        // email verification in this app, so fake-account trial farming is already possible
+        // regardless of referrals), just a ceiling against one code being blasted publicly and
+        // farmed at scale.
         User referrer = null;
         String incomingCode = req.getReferralCode();
         if (incomingCode != null && !incomingCode.isBlank()) {
-            referrer = userRepository.findByReferralCode(incomingCode.trim().toUpperCase()).orElse(null);
+            User candidate = userRepository.findByReferralCode(incomingCode.trim().toUpperCase()).orElse(null);
+            if (candidate != null && referralRepository.countByReferrer(candidate) < 100) {
+                referrer = candidate;
+            }
         }
         int trialDays = referrer != null ? 7 : 3;
 

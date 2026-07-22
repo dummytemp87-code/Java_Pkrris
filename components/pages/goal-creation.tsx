@@ -19,9 +19,10 @@ interface Goal {
 interface GoalCreationProps {
   setGoals: React.Dispatch<React.SetStateAction<Goal[]>>;
   onNavigate: (page: string) => void;
+  onGoalCreated?: (goal: Goal) => void;
 }
 
-export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps) {
+export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: GoalCreationProps) {
   const [goalTitle, setGoalTitle] = useState("")
   const [description, setDescription] = useState("")
   const [deadline, setDeadline] = useState("")
@@ -30,6 +31,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
   const [syllabus, setSyllabus] = useState<File | null>(null)
   const [analyzingSyllabus, setAnalyzingSyllabus] = useState(false)
   const [syllabusError, setSyllabusError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const addTopic = () => {
     if (newTopic.trim()) {
@@ -79,6 +81,8 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
   }
 
   const handleCreateGoal = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
@@ -103,9 +107,15 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
       setGoals((prev) => [...prev, data]);
       celebrateSmall();
       toast.success(`"${data?.title || goalTitle}" created — let's get started!`);
-      onNavigate("dashboard");
+      if (onGoalCreated) {
+        onGoalCreated(data);
+      } else {
+        onNavigate("dashboard");
+      }
     } catch (e) {
       toast.error('Failed to create goal');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -173,6 +183,9 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
             {!analyzingSyllabus && !syllabusError && syllabus && (
               <p className="text-xs text-muted-foreground mt-2">Title, description, and topics were filled in from your syllabus — feel free to edit them.</p>
             )}
+            {!syllabus && (
+              <p className="text-xs text-muted-foreground mt-2">Skipping this? No problem — just fill in the title and add topics manually below.</p>
+            )}
           </Card>
         </div>
 
@@ -220,9 +233,10 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
 
             <Button
               onClick={handleCreateGoal}
+              disabled={submitting || !goalTitle.trim()}
               className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
             >
-              Create Goal
+              {submitting ? "Creating..." : "Create Goal"}
             </Button>
           </Card>
         </div>

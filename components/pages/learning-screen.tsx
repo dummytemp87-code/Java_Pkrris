@@ -128,6 +128,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
   // Fetch module/goal progress for sidebar
   useEffect(() => {
+    let cancelled = false;
     const fetchProgress = async () => {
       if (!selectedGoalTitle) return;
       try {
@@ -139,7 +140,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
           }
         })
         const data = await res.json();
-        if (res.ok) {
+        if (!cancelled && res.ok) {
           const done = Number(data?.completedModules ?? 0)
           const total = Number(data?.totalModules ?? 0)
           const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
@@ -148,15 +149,20 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
       } catch {}
     }
     fetchProgress()
+    return () => { cancelled = true };
   }, [selectedGoalTitle])
 
+  const [completing, setCompleting] = useState(false)
+
   const toggleCompletion = async () => {
+    if (completing) return
     if (!selectedGoalTitle || !selectedModule?.id) {
       setState({ isCompleted: !isCompleted })
       return
     }
     const newVal = !isCompleted
     setState({ isCompleted: newVal })
+    setCompleting(true)
     try {
       const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -190,7 +196,9 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
         }
         if (onProgressUpdated) await onProgressUpdated()
       }
-    } catch {}
+    } catch {} finally {
+      setCompleting(false)
+    }
   }
 
   const sendMessage = async () => {
@@ -277,6 +285,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
         </div>
         <Button
           onClick={toggleCompletion}
+          disabled={completing}
           className={`${isCompleted ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"} text-white`}
         >
           <CheckCircle2 size={20} className="mr-2" />

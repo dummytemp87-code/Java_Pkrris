@@ -85,6 +85,10 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           <p className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-md px-3 py-2 mb-3">
             Referred by a friend — you'll get an extended 7-day trial.
           </p>
+        ) : mode === "register" ? (
+          <p className="text-xs text-muted-foreground bg-secondary/10 border border-secondary/20 rounded-md px-3 py-2 mb-3">
+            Free 3-day trial — no card required.
+          </p>
         ) : null}
         {mode === "register" && (
           <div className="mb-3">
