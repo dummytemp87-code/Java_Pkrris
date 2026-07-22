@@ -1,8 +1,10 @@
 package com.example.aichat.controller;
 
 import com.example.aichat.dto.SubscribeRequest;
+import com.example.aichat.model.Referral;
 import com.example.aichat.model.Subscription;
 import com.example.aichat.model.User;
+import com.example.aichat.repo.ReferralRepository;
 import com.example.aichat.repo.SubscriptionRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.service.RazorpayService;
@@ -18,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Optional;
 
@@ -29,6 +32,7 @@ public class BillingController {
 
     private final SubscriptionRepository subscriptionRepository;
     private final UserRepository userRepository;
+    private final ReferralRepository referralRepository;
     private final RazorpayService razorpayService;
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -38,9 +42,10 @@ public class BillingController {
     @Value("${razorpay.plan.pro:}")
     private String proPlanId;
 
-    public BillingController(SubscriptionRepository subscriptionRepository, UserRepository userRepository, RazorpayService razorpayService) {
+    public BillingController(SubscriptionRepository subscriptionRepository, UserRepository userRepository, ReferralRepository referralRepository, RazorpayService razorpayService) {
         this.subscriptionRepository = subscriptionRepository;
         this.userRepository = userRepository;
+        this.referralRepository = referralRepository;
         this.razorpayService = razorpayService;
     }
 
@@ -133,6 +138,7 @@ public class BillingController {
                     sub.setStatus("ACTIVE");
                     long currentEnd = subEntity.path("current_end").asLong(0);
                     if (currentEnd > 0) sub.setCurrentPeriodEnd(Instant.ofEpochSecond(currentEnd));
+                    creditReferrerIfApplicable(sub.getUser());
                     break;
                 }
                 case "subscription.cancelled":
@@ -152,5 +158,41 @@ public class BillingController {
             log.error("Failed to process Razorpay webhook", ex);
             return ResponseEntity.status(500).body(Map.of("error", "Failed to process webhook"));
         }
+    }
+
+    /**
+     * Credits a referrer with a free month (extends their local entitlement window by 30
+     * days) the first time their referred friend successfully pays. Capped at 6/year per
+     * referrer, and only ever fires once per referral (status flips PENDING -> REWARDED),
+     * so repeat "subscription.charged" events on renewal don't re-credit.
+     */
+    private void creditReferrerIfApplicable(User referredUser) {
+        Referral referral = referralRepository.findByReferredUser(referredUser).orElse(null);
+        if (referral == null || !"PENDING".equals(referral.getStatus())) return;
+
+        User referrer = referral.getReferrer();
+        long rewardsThisYear = referralRepository.countByReferrerAndStatusAndCreatedAtAfter(
+                referrer, "REWARDED", Instant.now().minus(365, ChronoUnit.DAYS));
+        if (rewardsThisYear >= 6) {
+            log.info("Referrer {} hit the 6/year reward cap, not crediting", referrer.getId());
+            return;
+        }
+
+        Subscription referrerSub = subscriptionRepository.findByUser(referrer).orElse(null);
+        if (referrerSub != null) {
+            if ("TRIALING".equals(referrerSub.getStatus()) && referrerSub.getTrialEndsAt() != null) {
+                referrerSub.setTrialEndsAt(referrerSub.getTrialEndsAt().plus(30, ChronoUnit.DAYS));
+            } else if (referrerSub.getCurrentPeriodEnd() != null) {
+                referrerSub.setCurrentPeriodEnd(referrerSub.getCurrentPeriodEnd().plus(30, ChronoUnit.DAYS));
+            } else {
+                referrerSub.setStatus("TRIALING");
+                referrerSub.setTrialEndsAt(Instant.now().plus(30, ChronoUnit.DAYS));
+            }
+            subscriptionRepository.save(referrerSub);
+        }
+
+        referral.setStatus("REWARDED");
+        referral.setRewardedAt(Instant.now());
+        referralRepository.save(referral);
     }
 }

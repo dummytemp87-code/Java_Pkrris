@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Target, MessageSquare, Library, BarChart3, ArrowRight } from "lucide-react"
@@ -82,8 +83,13 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 md:px-12 py-6 border-t border-border text-center text-sm text-muted-foreground">
-        StudyHub — Learn Smarter
+      <footer className="px-6 md:px-12 py-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span>StudyHub — Learn Smarter</span>
+        <div className="flex items-center gap-4">
+          <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
+          <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+          <Link href="/refund" className="hover:text-foreground transition-colors">Refunds</Link>
+        </div>
       </footer>
     </div>
   )

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Bell, Lock, User, Palette, X } from "lucide-react"
+import { Bell, Lock, User, Palette, X, Gift, Copy, Check } from "lucide-react"
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "english", label: "English" },
@@ -86,6 +86,8 @@ export default function Settings() {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
   const [profileName, setProfileName] = useState("")
   const [profileEmail, setProfileEmail] = useState("")
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const [pwdCurrent, setPwdCurrent] = useState("")
   const [pwdNew, setPwdNew] = useState("")
@@ -138,6 +140,36 @@ export default function Settings() {
     }
     loadProfile()
   }, [])
+
+  useEffect(() => {
+    const loadReferralCode = async () => {
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        const res = await fetch(`${base}/api/auth/me`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok && data?.referralCode) setReferralCode(data.referralCode)
+      } catch {
+        // ignore -- referral box just won't render
+      }
+    }
+    loadReferralCode()
+  }, [])
+
+  const referralLink = referralCode && typeof window !== 'undefined'
+    ? `${window.location.origin}/?ref=${referralCode}`
+    : null
+
+  const copyReferralLink = async () => {
+    if (!referralLink) return
+    try {
+      await navigator.clipboard.writeText(referralLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      // clipboard API unavailable -- silently ignore, link text is still selectable
+    }
+  }
 
   const handleSave = async () => {
     setSaveStatus('saving')
@@ -248,6 +280,31 @@ export default function Settings() {
             </Button>
           </div>
         </Card>
+
+        {/* Referral */}
+        {referralLink && (
+          <Card className="p-6 bg-card border border-border">
+            <div className="flex items-center gap-3 mb-2">
+              <Gift className="text-primary" size={24} />
+              <h2 className="text-xl font-bold text-foreground">Refer Friends</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Share your link — when a friend you refer subscribes, you get a free month. They get an extended 7-day trial too.
+            </p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={referralLink}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 px-4 py-2 rounded-lg border border-input bg-muted/30 text-foreground text-sm"
+              />
+              <Button onClick={copyReferralLink} className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                <span className="ml-2">{copied ? "Copied" : "Copy"}</span>
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Notification Settings */}
         <Card className="p-6 bg-card border border-border">

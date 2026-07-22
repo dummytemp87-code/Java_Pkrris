@@ -5,7 +5,8 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"email"})
+        @UniqueConstraint(columnNames = {"email"}),
+        @UniqueConstraint(columnNames = {"referral_code"})
 })
 public class User {
 
@@ -31,6 +32,9 @@ public class User {
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(name = "referral_code")
+    private String referralCode;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -51,4 +55,7 @@ public class User {
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
+    public String getReferralCode() { return referralCode; }
+    public void setReferralCode(String referralCode) { this.referralCode = referralCode; }
 }

@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Clock, Zap, TrendingUp, X, Target } from "lucide-react"
+import { CheckCircle2, Clock, Zap, TrendingUp, X, Target, Sparkles } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 
 interface Goal {
@@ -33,6 +33,28 @@ export default function Dashboard({
   const [studyMinutesToday, setStudyMinutesToday] = useState(0)
   const [streakDays, setStreakDays] = useState(0)
   const [todaysTasks, setTodaysTasks] = useState<Array<any>>([])
+  const [billingStatus, setBillingStatus] = useState<{ plan: string; status: string; trialEndsAt?: string | null } | null>(null)
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        const res = await fetch(`${base}/api/billing/status`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok) setBillingStatus(data)
+      } catch {
+        // ignore -- banner just won't render
+      }
+    }
+    run()
+  }, [])
+
+  const trialDaysLeft = (() => {
+    if (billingStatus?.status !== 'TRIALING' || !billingStatus.trialEndsAt) return null
+    const ms = new Date(billingStatus.trialEndsAt).getTime() - Date.now()
+    return Math.ceil(ms / (1000 * 60 * 60 * 24))
+  })()
 
   useEffect(() => {
     let cancelled = false
@@ -99,6 +121,22 @@ export default function Dashboard({
         <h1 className="text-3xl font-bold text-foreground mb-2">Welcome back{userName ? `, ${userName}` : ""}!</h1>
         <p className="text-muted-foreground">Keep up the momentum with your studies</p>
       </div>
+
+      {trialDaysLeft !== null && (
+        <Card className="p-4 bg-primary/5 border border-primary/20 mb-8 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <Sparkles className="text-primary shrink-0" size={20} />
+            <p className="text-sm font-medium text-foreground">
+              {trialDaysLeft > 0
+                ? `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left in your free trial.`
+                : "Your free trial has ended."}
+            </p>
+          </div>
+          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            View plans
+          </Button>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">

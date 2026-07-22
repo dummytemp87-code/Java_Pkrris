@@ -16,10 +16,20 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
   }, [mode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) {
+      setReferralCode(ref.toUpperCase());
+      setMode('register');
+    }
+  }, []);
 
   const submit = async () => {
     if (!email || !password || (mode === "register" && !name)) return;
@@ -32,7 +42,9 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          mode === "login" ? { email, password } : { name, email, password }
+          mode === "login"
+            ? { email, password }
+            : { name, email, password, ...(referralCode ? { referralCode } : {}) }
         ),
       });
       const data = await res.json();
@@ -69,6 +81,11 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
         <p className="text-sm text-muted-foreground mb-4">
           {mode === "login" ? "Welcome back" : "Create your account"}
         </p>
+        {mode === "register" && referralCode ? (
+          <p className="text-xs text-primary bg-primary/10 border border-primary/20 rounded-md px-3 py-2 mb-3">
+            Referred by a friend — you'll get an extended 7-day trial.
+          </p>
+        ) : null}
         {mode === "register" && (
           <div className="mb-3">
             <label className="block text-sm text-muted-foreground mb-1">Name</label>
