@@ -215,7 +215,7 @@ export default function Settings() {
 
       <div className="space-y-6">
         {/* Profile Settings */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <User className="text-primary" size={24} />
             <h2 className="text-xl font-bold text-foreground">Profile</h2>
@@ -252,7 +252,6 @@ export default function Settings() {
               />
             </div>
             <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
               disabled={profileSaving}
               onClick={async () => {
                 setProfileSaving(true)
@@ -285,7 +284,7 @@ export default function Settings() {
 
         {/* Referral */}
         {referralLink && (
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <div className="flex items-center gap-3 mb-2">
               <Gift className="text-primary" size={24} />
               <h2 className="text-xl font-bold text-foreground">Refer Friends</h2>
@@ -300,7 +299,7 @@ export default function Settings() {
                 onFocus={(e) => e.target.select()}
                 className="flex-1 px-4 py-2 rounded-lg border border-input bg-muted/30 text-foreground text-sm"
               />
-              <Button onClick={copyReferralLink} className="bg-primary text-primary-foreground hover:bg-primary/90 shrink-0">
+              <Button onClick={copyReferralLink} className="shrink-0">
                 {copied ? <Check size={16} /> : <Copy size={16} />}
                 <span className="ml-2">{copied ? "Copied" : "Copy"}</span>
               </Button>
@@ -309,7 +308,7 @@ export default function Settings() {
         )}
 
         {/* Notification Settings */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <Bell className="text-secondary" size={24} />
             <h2 className="text-xl font-bold text-foreground">Notifications</h2>
@@ -355,7 +354,7 @@ export default function Settings() {
         </Card>
 
         {/* Appearance Settings */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <Palette className="text-accent" size={24} />
             <h2 className="text-xl font-bold text-foreground">Appearance</h2>
@@ -407,7 +406,7 @@ export default function Settings() {
                       <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
                   </select>
-                  <Button onClick={addLanguage} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button onClick={addLanguage}>
                     Add
                   </Button>
                 </div>
@@ -428,20 +427,20 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-foreground">Save</h2>
               <p className="text-sm text-muted-foreground">Persist your preferences</p>
             </div>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleSave} disabled={saveStatus==='saving'}>
+            <Button onClick={handleSave} disabled={saveStatus==='saving'}>
               {saveStatus==='saving' ? 'Saving...' : 'Save Settings'}
             </Button>
           </div>
         </Card>
 
         {/* Security Settings */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <div className="flex items-center gap-3 mb-6">
             <Lock className="text-destructive" size={24} />
             <h2 className="text-xl font-bold text-foreground">Security</h2>

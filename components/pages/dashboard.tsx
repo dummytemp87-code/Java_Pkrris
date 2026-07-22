@@ -147,7 +147,7 @@ export default function Dashboard({
       </div>
 
       {trialDaysLeft !== null && (
-        <Card className="p-4 bg-primary/5 border border-primary/20 mb-8 flex items-center justify-between flex-wrap gap-3">
+        <Card className="p-4 bg-primary/10 border-primary/20 mb-8 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Sparkles className="text-primary shrink-0" size={20} />
             <p className="text-sm font-medium text-foreground">
@@ -156,7 +156,7 @@ export default function Dashboard({
                 : "Your free trial has ended."}
             </p>
           </div>
-          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button onClick={() => onNavigate('billing')}>
             View plans
           </Button>
         </Card>
@@ -166,7 +166,7 @@ export default function Dashboard({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         {loadingSummary ? (
           [0, 1, 2, 3].map((i) => (
-            <Card key={i} className="p-6 bg-card border border-border">
+            <Card key={i} className="p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-24" />
@@ -178,7 +178,7 @@ export default function Dashboard({
           ))
         ) : (
           <>
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
+            <Card className="p-6 transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Tasks Completed</p>
@@ -188,7 +188,7 @@ export default function Dashboard({
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
+            <Card className="p-6 transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Study Time</p>
@@ -198,7 +198,7 @@ export default function Dashboard({
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
+            <Card className="p-6 transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Streak</p>
@@ -208,7 +208,7 @@ export default function Dashboard({
               </div>
             </Card>
 
-            <Card className="p-6 bg-card border border-border transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
+            <Card className="p-6 transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Overall Progress</p>
@@ -225,7 +225,7 @@ export default function Dashboard({
           locked grey badges on a brand-new user's very first visit reads as
           discouraging rather than motivating. */}
       {goals.length > 0 && (
-        <Card className="p-5 bg-card border border-border mb-8">
+        <Card className="p-5 mb-8">
           <div className="flex items-center gap-2 mb-3">
             <Trophy size={16} className="text-muted-foreground" />
             <h2 className="text-sm font-semibold text-foreground">Achievements</h2>
@@ -251,7 +251,7 @@ export default function Dashboard({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Daily Tasks */}
         <div className="lg:col-span-2">
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <h2 className="text-xl font-bold text-foreground mb-4">Today's Tasks</h2>
             {loadingSummary ? (
               <div className="space-y-3">
@@ -299,13 +299,13 @@ export default function Dashboard({
 
         {/* Active Goals */}
         <div>
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <h2 className="text-xl font-bold text-foreground mb-4">Active Goals</h2>
             {goals.length === 0 ? (
               <div className="text-center py-6">
                 <Target size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
                 <p className="text-sm text-muted-foreground mb-4">You haven't set a learning goal yet.</p>
-                <Button onClick={() => onNavigate("goals")} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                <Button onClick={() => onNavigate("goals")}>
                   Create your first goal
                 </Button>
               </div>

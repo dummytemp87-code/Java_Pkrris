@@ -130,7 +130,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
         {/* Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Goal Title */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Goal Title</label>
             <input
               type="text"
@@ -142,7 +142,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
           </Card>
 
           {/* Description */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Description</label>
             <textarea
               value={description}
@@ -154,7 +154,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
           </Card>
 
           {/* Deadline */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Target Deadline</label>
             <input
               type="date"
@@ -165,7 +165,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
           </Card>
 
           {/* Syllabus Upload */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-4">Upload Syllabus (Optional)</label>
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
               <input type="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.webp" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" disabled={analyzingSyllabus} />
@@ -191,7 +191,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
 
         {/* Topics Sidebar */}
         <div>
-          <Card className="p-6 bg-card border border-border sticky top-6">
+          <Card className="p-6 sticky top-6">
             <h3 className="text-lg font-bold text-foreground mb-4">Topics to Cover</h3>
 
             <div className="space-y-3 mb-4">
@@ -220,7 +220,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
                 placeholder="Add a topic..."
                 className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <Button onClick={addTopic} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Button onClick={addTopic}>
                 <Plus size={16} />
               </Button>
             </div>
@@ -234,7 +234,7 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
             <Button
               onClick={handleCreateGoal}
               disabled={submitting || !goalTitle.trim()}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+              className="w-full font-semibold"
             >
               {submitting ? "Creating..." : "Create Goal"}
             </Button>

@@ -203,7 +203,7 @@ export default function Home() {
 
   if (auth.token) {
     return (
-      <div className='flex h-screen bg-background'>
+      <div className='flex h-screen'>
         <Navigation
           currentPage={currentPage}
           onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }}

@@ -67,22 +67,22 @@ export default function Analytics() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Total Study Time</p>
           <p className="text-3xl font-bold text-primary">{Math.round((totalMinutesWeek/60) * 10) / 10} hrs</p>
           <p className="text-xs text-muted-foreground mt-2">This week</p>
         </Card>
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Modules Completed</p>
           <p className="text-3xl font-bold text-secondary">{modulesCompleted}</p>
           <p className="text-xs text-muted-foreground mt-2">Out of {modulesTotal}</p>
         </Card>
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Average Score</p>
           <p className="text-3xl font-bold text-accent">{averageQuizScore}%</p>
           <p className="text-xs text-muted-foreground mt-2">On quizzes</p>
         </Card>
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <p className="text-sm text-muted-foreground mb-1">Current Streak</p>
           <p className="text-3xl font-bold text-primary">{currentStreakDays} days</p>
           <p className="text-xs text-muted-foreground mt-2">Keep it up!</p>
@@ -91,7 +91,7 @@ export default function Analytics() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Study Time Chart */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <h3 className="text-lg font-bold text-foreground mb-4">Study Time This Week</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={studyTimeData}>
@@ -111,7 +111,7 @@ export default function Analytics() {
         </Card>
 
         {/* Progress Chart */}
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <h3 className="text-lg font-bold text-foreground mb-4">Overall Progress</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={progressData}>
@@ -138,7 +138,7 @@ export default function Analytics() {
       </div>
 
       {/* Content Type Distribution */}
-      <Card className="p-6 bg-card border border-border">
+      <Card className="p-6">
         <h3 className="text-lg font-bold text-foreground mb-4">Learning Content Distribution</h3>
         <div className="flex flex-col md:flex-row items-center justify-center gap-8">
           <ResponsiveContainer width="100%" height={300}>

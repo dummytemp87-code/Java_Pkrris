@@ -305,7 +305,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Video Tab */}
             <TabsContent value="video" className="mt-4">
-              <Card className="p-4 bg-card border border-border">
+              <Card className="p-4">
                 {videoLoading ? (
                   <Skeleton className="aspect-video w-full rounded-lg" />
                 ) : videoError ? (
@@ -334,7 +334,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Article Tab */}
             <TabsContent value="article" className="mt-4">
-              <Card className="p-6 bg-card border border-border">
+              <Card className="p-6">
                 {articleLoading ? (
                   <div className="space-y-3">
                     <Skeleton className="h-5 w-2/3" />
@@ -358,7 +358,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Notes Tab */}
             <TabsContent value="notes" className="mt-4">
-              <Card className="p-6 bg-card border border-border">
+              <Card className="p-6">
                 <textarea
                   value={notes}
                   onChange={(e) => setState({ notes: e.target.value })}
@@ -369,7 +369,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                   <Button 
                     onClick={handleSaveNotes} 
                     disabled={saveStatus === 'saving'}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="disabled:opacity-50"
                   >
                     <Save size={16} className="mr-2" />
                     {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Notes'}
@@ -385,7 +385,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Chat Tab */}
             <TabsContent value="chat" className="mt-4">
-              <Card className="p-6 bg-card border border-border flex flex-col h-96">
+              <Card className="p-6 flex flex-col h-96">
                 <div className="flex-1 overflow-y-auto mb-4 space-y-4">
                   {messages.map((msg: any) => (
                     <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -417,7 +417,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                     className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     disabled={!!chatLoading}
                   />
-                  <Button onClick={sendMessage} disabled={!!chatLoading} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button onClick={sendMessage} disabled={!!chatLoading}>
                     {chatLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
                     Send
                   </Button>
@@ -430,7 +430,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
         {/* Sidebar */}
         <div className="space-y-4">
           {/* Progress */}
-          <Card className="p-4 bg-card border border-border">
+          <Card className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Module Progress</h3>
             <div className="space-y-3">
               <div>
@@ -447,7 +447,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
           </Card>
 
           {/* Quick Actions */}
-          <Card className="p-4 bg-card border border-border">
+          <Card className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Quick Actions</h3>
             <div className="space-y-2">
               <Button onClick={handleDownloadNotes} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90 justify-start">

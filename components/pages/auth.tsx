@@ -76,8 +76,8 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           ← Back to StudyHub
         </button>
       ) : null}
-      <Card className="w-full max-w-md p-6 bg-card border border-border">
-        <h1 className="text-xl font-bold mb-1 text-foreground">StudyHub</h1>
+      <Card className="w-full max-w-md p-6 glass-strong">
+        <h1 className="text-xl font-bold mb-1 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
         <p className="text-sm text-muted-foreground mb-4">
           {mode === "login" ? "Welcome back" : "Create your account"}
         </p>
@@ -94,7 +94,7 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           <div className="mb-3">
             <label className="block text-sm text-muted-foreground mb-1">Name</label>
             <input
-              className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground"
+              className="w-full px-3 py-2 rounded-md border border-white/20 dark:border-white/10 bg-white/5 backdrop-blur-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
@@ -104,7 +104,7 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
         <div className="mb-3">
           <label className="block text-sm text-muted-foreground mb-1">Email</label>
           <input
-            className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground"
+            className="w-full px-3 py-2 rounded-md border border-white/20 dark:border-white/10 bg-white/5 backdrop-blur-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
@@ -114,7 +114,7 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           <label className="block text-sm text-muted-foreground mb-1">Password</label>
           <input
             type="password"
-            className="w-full px-3 py-2 rounded-md border border-input bg-background text-foreground"
+            className="w-full px-3 py-2 rounded-md border border-white/20 dark:border-white/10 bg-white/5 backdrop-blur-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"

@@ -119,7 +119,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
       </div>
 
       {loading ? (
-        <Card className="p-4 bg-card border border-border">
+        <Card className="p-4">
           <Skeleton className="h-6 w-40 mb-4" />
           <div className="space-y-4">
             {[0, 1, 2].map((i) => (
@@ -135,9 +135,9 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
           </div>
         </Card>
       ) : subscriptionRequired ? (
-        <Card className="p-6 bg-card border border-border">
+        <Card className="p-6">
           <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new quizzes.</p>
-          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button onClick={() => onNavigate('billing')}>
             View plans
           </Button>
         </Card>
@@ -145,7 +145,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
         <p className="text-sm text-red-600">{error}</p>
       ) : quiz ? (
         <div className="space-y-4">
-          <Card className="p-4 bg-card border border-border">
+          <Card className="p-4">
             <h2 className="text-xl font-semibold text-foreground mb-2">{quiz.title || 'Module Quiz'}</h2>
             <div className="space-y-4">
               {Array.isArray(quiz.questions) && quiz.questions.map((q: any) => (
@@ -175,14 +175,14 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
             </div>
           </Card>
           {!result ? (
-            <Button onClick={handleSubmit} disabled={!allAnswered || submitting} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button onClick={handleSubmit} disabled={!allAnswered || submitting}>
               {submitting ? 'Submitting...' : 'Submit Quiz'}
             </Button>
           ) : (
-            <Card className="p-4 bg-card border border-border">
+            <Card className="p-4">
               <p className="text-foreground">Score: <span className="font-semibold">{result.score}/{result.total}</span> ({result.percent}%)</p>
               <div className="mt-3 flex gap-2">
-                <Button onClick={() => onNavigate('study-plan')} className="bg-primary text-primary-foreground hover:bg-primary/90">Back to Study Plan</Button>
+                <Button onClick={() => onNavigate('study-plan')}>Back to Study Plan</Button>
               </div>
             </Card>
           )}

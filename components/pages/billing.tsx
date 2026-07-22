@@ -137,11 +137,11 @@ export default function Billing() {
       </div>
 
       {loading ? (
-        <Card className="p-6 bg-card border border-border mb-8">
+        <Card className="p-6 mb-8">
           <Skeleton className="h-4 w-64" />
         </Card>
       ) : (
-        <Card className="p-6 bg-card border border-border mb-8 animate-in fade-in-0 duration-200">
+        <Card className="p-6 mb-8 animate-in fade-in-0 duration-200">
           {isActive ? (
             <p className="text-sm font-medium text-foreground">
               You're on the <span className="capitalize">{status?.plan?.toLowerCase()}</span> plan. Thanks for subscribing!
@@ -163,7 +163,7 @@ export default function Billing() {
         {PLANS.map((plan) => (
           <Card
             key={plan.id}
-            className="p-6 bg-card border border-border flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200"
+            className="p-6 flex flex-col transition-all hover:shadow-md hover:-translate-y-0.5 animate-in fade-in-0 duration-200"
           >
             <h3 className="text-xl font-bold text-foreground mb-1">{plan.name}</h3>
             <p className="text-3xl font-bold text-foreground mb-4">
@@ -181,7 +181,7 @@ export default function Billing() {
             <Button
               onClick={() => handleSubscribe(plan.id)}
               disabled={subscribing !== null || (isActive && status?.plan?.toLowerCase() === plan.id)}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+              className="w-full font-semibold"
             >
               {subscribing === plan.id ? (
                 <Loader2 size={18} className="animate-spin" />

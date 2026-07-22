@@ -61,12 +61,12 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative w-64 h-screen bg-sidebar border-r border-sidebar-border transition-transform duration-300 z-40 ${
+        className={`fixed md:relative w-64 h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="p-6 border-b border-sidebar-border">
-          <h1 className="text-2xl font-bold text-sidebar-primary">StudyHub</h1>
+        <div className="p-6 border-b border-sidebar-border/30">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
           <p className="text-sm text-sidebar-foreground/60">Learn Smarter</p>
         </div>
 
@@ -81,9 +81,9 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
                   onNavigate(item.id)
                   setIsOpen(false)
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
                   isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/20"
                 }`}
               >

@@ -35,10 +35,10 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-5 md:px-12">
-        <h1 className="text-xl font-bold text-foreground">StudyHub</h1>
+        <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
         <Button variant="ghost" onClick={onLogin}>
           Log in
         </Button>
@@ -46,7 +46,7 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
 
       {/* Hero */}
       <section className="px-6 md:px-12 py-16 md:py-24 max-w-4xl mx-auto text-center">
-        <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4 text-balance">
+        <h2 className="text-4xl md:text-6xl font-bold mb-4 text-balance bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
           Your AI-powered study companion
         </h2>
         <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto text-pretty">
@@ -54,7 +54,7 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
           all in one place.
         </p>
         <div className="flex items-center justify-center gap-3">
-          <Button size="lg" onClick={onGetStarted} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button size="lg" onClick={onGetStarted}>
             Get Started
             <ArrowRight size={18} />
           </Button>
@@ -73,9 +73,9 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
           {features.map((feature) => {
             const Icon = feature.icon
             return (
-              <Card key={feature.title} className="p-6 bg-card border border-border">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                  <Icon className="text-primary" size={20} />
+              <Card key={feature.title} className="p-6 hover:-translate-y-1 hover:shadow-xl transition-all">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center mb-4 shadow-md shadow-primary/20">
+                  <Icon className="text-primary-foreground" size={20} />
                 </div>
                 <h3 className="font-semibold text-foreground mb-2">{feature.title}</h3>
                 <p className="text-sm text-muted-foreground text-pretty">{feature.description}</p>
@@ -86,7 +86,7 @@ export default function Landing({ onGetStarted, onLogin }: LandingProps) {
       </section>
 
       {/* Footer */}
-      <footer className="px-6 md:px-12 py-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
+      <footer className="px-6 md:px-12 py-6 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>StudyHub — Learn Smarter</span>
         <div className="flex items-center gap-4">
           <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>

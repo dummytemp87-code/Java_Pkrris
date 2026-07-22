@@ -148,7 +148,7 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
         {loadingGoals ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
-              <Card key={i} className="p-4 border border-border">
+              <Card key={i} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-40" />
@@ -162,14 +162,14 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
         ) : goalsList.length === 0 ? (
           <div className="text-center py-6">
             <p className="text-sm text-muted-foreground mb-4">No goals yet.</p>
-            <Button onClick={() => onNavigate('goals')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button onClick={() => onNavigate('goals')}>
               Create a goal
             </Button>
           </div>
         ) : (
           <div className="space-y-3">
             {goalsList.map((g) => (
-              <Card key={g.id} className="p-4 hover:bg-muted/40 hover:-translate-y-0.5 transition-all cursor-pointer border border-border animate-in fade-in-0 duration-200" onClick={() => onSelectGoal && onSelectGoal(g)}>
+              <Card key={g.id} className="p-4 hover:bg-muted/40 hover:-translate-y-0.5 transition-all cursor-pointer animate-in fade-in-0 duration-200" onClick={() => onSelectGoal && onSelectGoal(g)}>
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="font-semibold text-foreground">{g.title}</h3>
@@ -215,9 +215,9 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
           ))}
         </div>
       ) : subscriptionRequired ? (
-        <Card className="p-6 bg-card border border-border mb-6">
+        <Card className="p-6 mb-6">
           <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new study plans.</p>
-          <Button onClick={() => onNavigate('billing')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+          <Button onClick={() => onNavigate('billing')}>
             View plans
           </Button>
         </Card>
