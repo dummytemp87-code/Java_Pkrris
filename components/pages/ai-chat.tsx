@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { TypingIndicator } from "@/components/ui/typing-indicator"
 import { Send, Lightbulb, Loader2, Lock } from "lucide-react"
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
@@ -125,6 +126,7 @@ export default function AIChat({ goals = [], onNavigate }: { goals?: Goal[]; onN
               </div>
             </div>
           ))}
+          {loading && <TypingIndicator />}
         </div>
 
         {/* Input */}

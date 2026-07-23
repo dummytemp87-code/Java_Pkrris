@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { TypingIndicator } from "@/components/ui/typing-indicator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CheckCircle2, MessageSquare, FileText, Save, Loader2, ArrowLeft } from "lucide-react"
 import ReactMarkdown from "react-markdown"
@@ -406,6 +407,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                       </div>
                     </div>
                   ))}
+                  {chatLoading && <TypingIndicator />}
                 </div>
                 <div className="flex gap-2">
                   <input

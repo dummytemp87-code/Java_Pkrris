@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { AILoading } from '@/components/ui/ai-loading'
 import { celebrateBig, celebrateSmall } from '@/lib/confetti'
 
 interface Module {
@@ -119,21 +119,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
       </div>
 
       {loading ? (
-        <Card className="p-4">
-          <Skeleton className="h-6 w-40 mb-4" />
-          <div className="space-y-4">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="p-3 rounded-lg border border-border space-y-3">
-                <Skeleton className="h-4 w-4/5" />
-                <div className="space-y-2">
-                  <Skeleton className="h-3 w-3/5" />
-                  <Skeleton className="h-3 w-2/5" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <AILoading messages={["Reading the module…", "Writing questions…", "Almost ready…"]} />
       ) : subscriptionRequired ? (
         <Card className="p-6">
           <p className="text-sm font-medium text-foreground mb-3">Your trial has ended. Upgrade to generate new quizzes.</p>
@@ -176,7 +162,7 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
           </Card>
           {!result ? (
             <Button onClick={handleSubmit} disabled={!allAnswered || submitting}>
-              {submitting ? 'Submitting...' : 'Submit Quiz'}
+              {submitting ? 'Grading…' : 'Submit Quiz'}
             </Button>
           ) : (
             <Card className="p-4">

@@ -6,6 +6,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { AILoading } from "@/components/ui/ai-loading"
 import { Upload, Plus, X } from "lucide-react"
 import { celebrateSmall } from "@/lib/confetti"
 
@@ -170,10 +171,16 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
               <input type="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.webp" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" disabled={analyzingSyllabus} />
               <label htmlFor="syllabus-upload" className={analyzingSyllabus ? "cursor-wait" : "cursor-pointer"}>
-                <Upload className="mx-auto mb-2 text-muted-foreground" size={32} />
-                <p className="text-sm font-medium text-foreground">
-                  {analyzingSyllabus ? "Analyzing syllabus..." : syllabus ? syllabus.name : "Click to upload or drag and drop"}
-                </p>
+                {analyzingSyllabus ? (
+                  <AILoading compact messages={["Reading your file…", "Finding topics…", "Almost done…"]} />
+                ) : (
+                  <>
+                    <Upload className="mx-auto mb-2 text-muted-foreground" size={32} />
+                    <p className="text-sm font-medium text-foreground">
+                      {syllabus ? syllabus.name : "Click to upload or drag and drop"}
+                    </p>
+                  </>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, or a photo of your syllabus (JPG/PNG)</p>
               </label>
             </div>
