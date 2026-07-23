@@ -36,10 +36,6 @@ export default function RootLayout({
               className="bg-blob bg-accent"
               style={{ width: '34rem', height: '34rem', bottom: '-15%', left: '20%', animationDuration: '26s', animationDelay: '-12s' }}
             />
-            <div
-              className="bg-blob bg-primary"
-              style={{ width: '30rem', height: '30rem', top: '5%', right: '10%', animationDuration: '30s', animationDelay: '-18s' }}
-            />
           </div>
           {children}
           <ToastProvider />
