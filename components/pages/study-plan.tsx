@@ -21,7 +21,7 @@ interface Module {
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
-export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearning }: { onNavigate: (page: string) => void; goal?: Goal; onSelectGoal?: (goal: Goal) => void; onStartLearning?: (goalTitle: string, module: Module) => void }) {
+export default function StudyPlan({ onNavigate, goal, focusModuleId, onSelectGoal, onStartLearning }: { onNavigate: (page: string) => void; goal?: Goal; focusModuleId?: number; onSelectGoal?: (goal: Goal) => void; onStartLearning?: (goalTitle: string, module: Module) => void }) {
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -108,28 +108,45 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
     return () => { cancelled = true }
   }, [goal?.title])
 
-  // The AI invents a `day.date` string (seen values like "2023-11-01") that
-  // isn't tied to real calendar time, so it can't be used to find "today".
-  // Instead: the plan was generated for exactly `goal.daysLeft` days *at
-  // generation time* (see the fetchPlan request above), and `goal.daysLeft`
-  // is a live, server-computed countdown that shrinks by 1 each real day --
-  // so `studyPlan.length - goal.daysLeft` is a reliable, backend-free count
-  // of days elapsed since the plan started.
+  // If we arrived here from a specific task (e.g. clicked from Dashboard's
+  // "Today's Tasks", which is real backend-computed scheduling), that exact
+  // module is the source of truth for "today" -- takes priority over the
+  // day-elapsed guess below.
+  const focusedModuleLocation = useMemo(() => {
+    if (focusModuleId == null) return null
+    for (let d = 0; d < studyPlan.length; d++) {
+      const found = studyPlan[d]?.modules?.find((m: any) => m.id === focusModuleId)
+      if (found) return { dayIndex: d, module: found }
+    }
+    return null
+  }, [studyPlan, focusModuleId])
+
+  // Fallback when there's no specific task to focus (e.g. arriving via the
+  // sidebar or a freshly created goal): the AI invents a `day.date` string
+  // (seen values like "2023-11-01") that isn't tied to real calendar time,
+  // so it can't be used to find "today". Instead, the plan was generated for
+  // exactly `goal.daysLeft` days *at generation time* (see the fetchPlan
+  // request above), and `goal.daysLeft` is a live, server-computed countdown
+  // that shrinks by 1 each real day -- so `studyPlan.length - goal.daysLeft`
+  // is a reliable, backend-free count of days elapsed since the plan started.
   const currentDayIndex = useMemo(() => {
+    if (focusedModuleLocation) return focusedModuleLocation.dayIndex
     if (!studyPlan.length) return -1
     const elapsed = studyPlan.length - (goal?.daysLeft ?? 0)
     return Math.max(0, Math.min(elapsed, studyPlan.length - 1))
-  }, [studyPlan.length, goal?.daysLeft])
+  }, [studyPlan.length, goal?.daysLeft, focusedModuleLocation])
 
-  // First incomplete module from today onward -- where "Continue here" points.
+  // The module to scroll to and badge "Continue here" -- the exact clicked
+  // task if we have one, otherwise the first incomplete module from today.
   const nextModule = useMemo(() => {
+    if (focusedModuleLocation) return focusedModuleLocation.module
     if (currentDayIndex < 0) return null
     for (let d = currentDayIndex; d < studyPlan.length; d++) {
       const found = studyPlan[d]?.modules?.find((m: any) => !m.completed)
       if (found) return found
     }
     return null
-  }, [studyPlan, currentDayIndex])
+  }, [studyPlan, currentDayIndex, focusedModuleLocation])
 
   const moduleRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const hasScrolledToNext = useRef(false)

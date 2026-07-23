@@ -27,7 +27,7 @@ export default function Dashboard({
   onNavigate: (page: string) => void;
   goals: Goal[];
   onDeleteGoal: (id: number) => void;
-  onSelectGoal?: (goal: Goal) => void;
+  onSelectGoal?: (goal: Goal, focusModuleId?: number) => void;
   refreshKey?: number;
   userName?: string;
 }) {
@@ -96,10 +96,10 @@ export default function Dashboard({
     ? Math.round(goals.reduce((acc, goal) => acc + goal.progress, 0) / goals.length)
     : 0
 
-  const openTaskGoal = (goalTitle: string) => {
+  const openTaskGoal = (goalTitle: string, moduleId?: number) => {
     const g = goals.find(x => x.title === goalTitle)
     if (g) {
-      onSelectGoal ? onSelectGoal(g) : onNavigate('study-plan')
+      onSelectGoal ? onSelectGoal(g, moduleId) : onNavigate('study-plan')
     }
   }
 
@@ -274,7 +274,7 @@ export default function Dashboard({
                   <div
                     key={`${t.goalTitle}-${t.moduleId}-${idx}`}
                     className="flex items-center gap-4 p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                    onClick={() => openTaskGoal(t.goalTitle)}
+                    onClick={() => openTaskGoal(t.goalTitle, t.moduleId)}
                   >
                     <input
                       type="checkbox"

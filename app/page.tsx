@@ -39,6 +39,7 @@ export default function Home() {
 
   const [auth, setAuth] = useState<{ token: string | null; name?: string; email?: string; role?: string }>({ token: null })
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null)
+  const [focusModuleId, setFocusModuleId] = useState<number | undefined>(undefined)
 
   useEffect(() => {
     const t = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -146,7 +147,7 @@ export default function Home() {
             onNavigate={setCurrentPage}
             goals={goals}
             onDeleteGoal={handleDeleteGoal}
-            onSelectGoal={(goal: Goal) => { setSelectedGoal(goal); setCurrentPage('study-plan'); }}
+            onSelectGoal={(goal: Goal, moduleId?: number) => { setSelectedGoal(goal); setFocusModuleId(moduleId); setCurrentPage('study-plan'); }}
             refreshKey={dashboardRefreshKey}
             userName={auth.name}
           />
@@ -156,11 +157,11 @@ export default function Home() {
           <GoalCreation
             setGoals={setGoals}
             onNavigate={setCurrentPage}
-            onGoalCreated={(goal: Goal) => { setSelectedGoal(goal); setCurrentPage('study-plan'); }}
+            onGoalCreated={(goal: Goal) => { setSelectedGoal(goal); setFocusModuleId(undefined); setCurrentPage('study-plan'); }}
           />
         )
       case 'study-plan':
-        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
+        return <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} focusModuleId={focusModuleId} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setFocusModuleId(undefined); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
       case 'learning':
         return learningScreenState.selectedGoalTitle && learningScreenState.selectedModule ? (
           <LearningScreen
@@ -170,18 +171,18 @@ export default function Home() {
             onProgressUpdated={refreshGoals}
           />
         ) : (
-          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
+          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} focusModuleId={focusModuleId} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setFocusModuleId(undefined); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
         )
       case 'quiz':
         return learningScreenState.selectedGoalTitle && learningScreenState.selectedModule ? (
-          <QuizPage 
+          <QuizPage
             onNavigate={setCurrentPage}
             goalTitle={learningScreenState.selectedGoalTitle}
             module={learningScreenState.selectedModule}
             onProgressUpdated={refreshGoals}
           />
         ) : (
-          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
+          <StudyPlan onNavigate={setCurrentPage} goal={selectedGoal || undefined} focusModuleId={focusModuleId} onSelectGoal={(g: Goal) => { setSelectedGoal(g); setFocusModuleId(undefined); setCurrentPage('study-plan'); }} onStartLearning={handleStartLearning} />
         )
       case 'chat':
         return <AIChat goals={goals} onNavigate={setCurrentPage} />
@@ -208,7 +209,7 @@ export default function Home() {
         <ThemeToggle />
         <Navigation
           currentPage={currentPage}
-          onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }}
+          onNavigate={(page) => { if (page === 'study-plan') { setSelectedGoal(null); setFocusModuleId(undefined); } setCurrentPage(page); }}
           showLearn={!!learningScreenState.selectedModule}
         />
         <main className='flex-1 overflow-auto'>{renderPage()}</main>
