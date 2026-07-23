@@ -149,9 +149,9 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   }
   .dark .glass {
-    background-color: color-mix(in oklch, var(--card) 45%, transparent);
-    border-color: color-mix(in oklch, white 10%, transparent);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    background-color: color-mix(in oklch, var(--card) 68%, transparent);
+    border-color: color-mix(in oklch, white 22%, transparent);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   }
 
   .glass-strong {
@@ -162,9 +162,9 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   }
   .dark .glass-strong {
-    background-color: color-mix(in oklch, var(--card) 78%, transparent);
-    border-color: color-mix(in oklch, white 12%, transparent);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    background-color: color-mix(in oklch, var(--card) 88%, transparent);
+    border-color: color-mix(in oklch, white 24%, transparent);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
   }
 
   .glow-primary {
