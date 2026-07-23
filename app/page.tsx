@@ -212,7 +212,7 @@ export default function Home() {
           onNavigate={(page) => { if (page === 'study-plan') { setSelectedGoal(null); setFocusModuleId(undefined); } setCurrentPage(page); }}
           showLearn={!!learningScreenState.selectedModule}
         />
-        <main className='flex-1 overflow-auto'>{renderPage()}</main>
+        <main className='flex-1 overflow-auto pt-16 md:pt-0'>{renderPage()}</main>
       </div>
     )
   }

@@ -53,7 +53,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="p-6 border-b border-sidebar-border/30">
+        <div className="p-6 pt-20 md:pt-6 border-b border-sidebar-border/30">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
           <p className="text-sm text-sidebar-foreground/60">Learn Smarter</p>
         </div>
