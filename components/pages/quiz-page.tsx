@@ -104,12 +104,12 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">{module?.title || 'Quiz'}</h1>
-          <p className="text-muted-foreground">{goalTitle}</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 truncate">{module?.title || 'Quiz'}</h1>
+          <p className="text-muted-foreground truncate">{goalTitle}</p>
         </div>
-        <Button variant="outline" onClick={() => onNavigate('study-plan')}>Back to Plan</Button>
+        <Button variant="outline" onClick={() => onNavigate('study-plan')} className="shrink-0 w-full sm:w-auto">Back to Plan</Button>
       </div>
 
       {loading ? (

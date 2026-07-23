@@ -274,20 +274,22 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center">
-            <ArrowLeft size={16} className="mr-2" /> Back to Study Plan
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center shrink-0">
+            <ArrowLeft size={16} className="mr-2" />
+            <span className="hidden sm:inline">Back to Study Plan</span>
+            <span className="sm:hidden">Back</span>
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">{topic}</h1>
-            <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 truncate">{topic}</h1>
+            <p className="text-muted-foreground truncate">{selectedGoalTitle || 'Personalized Learning'}</p>
           </div>
         </div>
         <Button
           onClick={toggleCompletion}
           disabled={completing}
-          className={isCompleted ? "bg-none bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+          className={`shrink-0 w-full sm:w-auto ${isCompleted ? "bg-none bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
         >
           <CheckCircle2 size={20} className="mr-2" />
           {isCompleted ? "Completed" : "Mark Complete"}
