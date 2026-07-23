@@ -416,6 +416,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                     onChange={(e) => setState({ inputMessage: e.target.value })}
                     onKeyPress={(e) => e.key === "Enter" && !chatLoading && sendMessage()}
                     placeholder="Ask your tutor..."
+                    autoComplete="off"
                     className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     disabled={!!chatLoading}
                   />

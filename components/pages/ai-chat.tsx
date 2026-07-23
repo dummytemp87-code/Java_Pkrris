@@ -137,6 +137,7 @@ export default function AIChat({ goals = [], onNavigate }: { goals?: Goal[]; onN
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Type your question..."
+            autoComplete="off"
             className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             disabled={loading}
           />
