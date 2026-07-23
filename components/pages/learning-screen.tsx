@@ -275,15 +275,15 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center shrink-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center shrink-0 w-fit">
             <ArrowLeft size={16} className="mr-2" />
             <span className="hidden sm:inline">Back to Study Plan</span>
             <span className="sm:hidden">Back</span>
           </Button>
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 truncate">{topic}</h1>
-            <p className="text-muted-foreground truncate">{selectedGoalTitle || 'Personalized Learning'}</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">{topic}</h1>
+            <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
           </div>
         </div>
         <Button
