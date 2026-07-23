@@ -58,29 +58,34 @@ public class YouTubeService {
         List<Map<String, Object>> items = extractItems(body);
 
         // relevanceLanguage only biases ranking, it doesn't guarantee the result is
-        // actually in that language. Verify against each video's real language metadata
-        // and promote the first genuine match to the top, without discarding the rest.
-        if (langName != null) {
-            String matchedId = items.isEmpty() ? null : findLanguageMatch(items, lang);
-            if (matchedId != null) {
-                items.sort((a, b) -> videoId(a).equals(matchedId) ? -1 : videoId(b).equals(matchedId) ? 1 : 0);
-                body.put("items", items);
-                body.put("actualLanguage", lang);
-                return body;
-            }
-            // Either the language-enriched query returned nothing, or no candidate
-            // genuinely matched. Default to a plain English search rather than silently
-            // returning an off-language video (or nothing) as if it were a real match.
-            Map<String, Object> englishBody = search(query, "en");
-            List<Map<String, Object>> englishItems = extractItems(englishBody);
-            englishBody.put("items", englishItems);
-            englishBody.put("actualLanguage", "en");
-            return englishBody;
+        // actually in that language -- a video in the wrong language can still rank
+        // first on text relevance alone. Verify every candidate's real language
+        // metadata (including for English, which used to skip this check entirely)
+        // and drop any explicitly tagged as a *different* language, so a user who
+        // didn't ask for e.g. Hindi never sees Hindi content just because it ranked
+        // well for the same query text.
+        List<Map<String, Object>> ranked = rankByLanguage(items, lang);
+        if (!ranked.isEmpty()) {
+            body.put("items", ranked);
+            body.put("actualLanguage", lang);
+            return body;
         }
-
-        body.put("items", items);
-        body.put("actualLanguage", lang);
-        return body;
+        if (lang.equals("en")) {
+            // Every candidate was explicitly tagged as a non-English language --
+            // return the plain ranking rather than nothing.
+            body.put("items", items);
+            body.put("actualLanguage", "en");
+            return body;
+        }
+        // No candidate for the requested language survived filtering. Fall back to
+        // English, filtered the same way so an unrelated third language can't slip
+        // through this path unverified either.
+        Map<String, Object> englishBody = search(query, "en");
+        List<Map<String, Object>> englishItems = extractItems(englishBody);
+        List<Map<String, Object>> englishRanked = rankByLanguage(englishItems, "en");
+        englishBody.put("items", !englishRanked.isEmpty() ? englishRanked : englishItems);
+        englishBody.put("actualLanguage", "en");
+        return englishBody;
     }
 
     private Map<String, Object> search(String query, String lang) {
@@ -136,19 +141,26 @@ public class YouTubeService {
 
     /**
      * Looks up real language metadata (defaultAudioLanguage/defaultLanguage) for the
-     * candidate videos and returns the ID of the first one that actually matches, or
-     * null if none do (many uploaders don't set this field at all, so absence isn't
-     * treated as a mismatch — we just don't reorder in that case).
+     * candidate videos and returns them re-ordered and filtered: videos verified in
+     * the target language come first (original relevance order preserved within that
+     * group), videos with no language metadata at all follow (absence isn't proof of
+     * mismatch -- most uploaders never set this field), and videos verified as a
+     * *different* language are dropped entirely -- a user who asked for English
+     * shouldn't see a video explicitly tagged Hindi just because it ranked well on
+     * text relevance. Returns an empty list if metadata lookup fails outright or
+     * every candidate is explicitly a different language, so the caller can fall
+     * back to a plain, unfiltered ranking rather than surfacing nothing.
      */
     @SuppressWarnings("unchecked")
-    private String findLanguageMatch(List<Map<String, Object>> items, String lang) {
+    private List<Map<String, Object>> rankByLanguage(List<Map<String, Object>> items, String lang) {
         List<String> ids = new ArrayList<>();
         for (Map<String, Object> item : items) {
             String vid = videoId(item);
             if (!vid.isBlank()) ids.add(vid);
         }
-        if (ids.isEmpty()) return null;
+        if (ids.isEmpty()) return List.of();
 
+        Map<String, String> metadataById = new java.util.HashMap<>();
         try {
             URI uri = UriComponentsBuilder
                     .fromHttpUrl("https://www.googleapis.com/youtube/v3/videos")
@@ -159,24 +171,38 @@ public class YouTubeService {
                     .encode()
                     .toUri();
             ResponseEntity<Map> resp = restTemplate.getForEntity(uri, Map.class);
-            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) return null;
+            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) return List.of();
             Object rawItems = resp.getBody().get("items");
-            if (!(rawItems instanceof List<?> list)) return null;
+            if (!(rawItems instanceof List<?> list)) return List.of();
             for (Object o : list) {
                 if (!(o instanceof Map<?, ?> videoMap)) continue;
                 Object snippetObj = videoMap.get("snippet");
                 if (!(snippetObj instanceof Map<?, ?> snippet)) continue;
+                Object id = videoMap.get("id");
+                if (id == null) continue;
                 String audioLang = str(snippet.get("defaultAudioLanguage"));
                 String defaultLang = str(snippet.get("defaultLanguage"));
-                if (matches(audioLang, lang) || matches(defaultLang, lang)) {
-                    Object id = videoMap.get("id");
-                    return id != null ? id.toString() : null;
-                }
+                String resolved = audioLang != null ? audioLang : defaultLang;
+                if (resolved != null) metadataById.put(id.toString(), resolved);
             }
         } catch (RestClientException ignored) {
-            // verification is a best-effort enhancement; fall back to the original ranking
+            return List.of();
         }
-        return null;
+
+        List<Map<String, Object>> matched = new ArrayList<>();
+        List<Map<String, Object>> unknown = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            String vid = videoId(item);
+            String metaLang = metadataById.get(vid);
+            if (metaLang == null) {
+                unknown.add(item);
+            } else if (matches(metaLang, lang)) {
+                matched.add(item);
+            }
+            // else: verified as a different language -- dropped.
+        }
+        matched.addAll(unknown);
+        return matched;
     }
 
     private boolean matches(String metadataLang, String target) {
