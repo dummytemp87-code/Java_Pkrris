@@ -286,7 +286,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
         <Button
           onClick={toggleCompletion}
           disabled={completing}
-          className={`${isCompleted ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"} text-white`}
+          className={isCompleted ? "bg-none bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
         >
           <CheckCircle2 size={20} className="mr-2" />
           {isCompleted ? "Completed" : "Mark Complete"}
@@ -450,12 +450,12 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
           <Card className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Quick Actions</h3>
             <div className="space-y-2">
-              <Button onClick={handleDownloadNotes} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90 justify-start">
-                <FileText size={16} className="mr-2" />
+              <Button onClick={handleDownloadNotes} variant="outline" className="w-full justify-start">
+                <FileText size={16} className="mr-2 text-secondary" />
                 Download Notes
               </Button>
-              <Button onClick={() => onNavigate('chat')} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start">
-                <MessageSquare size={16} className="mr-2" />
+              <Button onClick={() => onNavigate('chat')} variant="outline" className="w-full justify-start">
+                <MessageSquare size={16} className="mr-2 text-accent" />
                 Ask Question
               </Button>
             </div>

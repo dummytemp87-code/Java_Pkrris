@@ -467,7 +467,8 @@ export default function Settings() {
               />
             </div>
             <Button
-              className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90"
+              variant="secondary"
+              className="w-full"
               disabled={pwdStatus === 'saving'}
               onClick={async () => {
                 setPwdStatus('saving')

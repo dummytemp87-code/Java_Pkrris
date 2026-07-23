@@ -120,16 +120,32 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
     }
   }
 
+  // Left-border accent only -- deliberately no bg-* override here, so the
+  // glass Card background/blur stays intact instead of being painted over
+  // by a flat solid color.
   const getTypeColor = (type: string) => {
     switch (type) {
       case "video":
-        return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-200 border-l-4 border-l-blue-500 dark:border-l-blue-400"
+        return "border-l-4 border-l-blue-500 dark:border-l-blue-400"
       case "article":
-        return "bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-200 border-l-4 border-l-green-500 dark:border-l-green-400"
+        return "border-l-4 border-l-emerald-500 dark:border-l-emerald-400"
       case "quiz":
-        return "bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-200 border-l-4 border-l-orange-500 dark:border-l-orange-400"
+        return "border-l-4 border-l-orange-500 dark:border-l-orange-400"
       default:
-        return "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-200 border-l-4 border-l-purple-500 dark:border-l-purple-400"
+        return "border-l-4 border-l-purple-500 dark:border-l-purple-400"
+    }
+  }
+
+  const getTypeAccent = (type: string) => {
+    switch (type) {
+      case "video":
+        return "text-blue-600 dark:text-blue-300"
+      case "article":
+        return "text-emerald-600 dark:text-emerald-300"
+      case "quiz":
+        return "text-orange-600 dark:text-orange-300"
+      default:
+        return "text-purple-600 dark:text-purple-300"
     }
   }
 
@@ -242,30 +258,32 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
               {day.modules.map((module: any) => (
                 <Card
                   key={module.id}
-                  className={`p-4 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 ${getTypeColor(module.type)}`}
+                  className={`group p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${getTypeColor(module.type)}`}
                   onClick={() => handleModuleClick(module)}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-semibold uppercase opacity-75">{getTypeLabel(module.type)}</span>
-                        <span className="text-xs opacity-60">{module.duration}</span>
+                        <span className={`text-xs font-semibold uppercase ${getTypeAccent(module.type)}`}>{getTypeLabel(module.type)}</span>
+                        <span className="text-xs text-muted-foreground">{module.duration}</span>
                       </div>
-                      <h3 className="font-semibold">{module.title}</h3>
+                      <h3 className="font-semibold text-foreground">{module.title}</h3>
                     </div>
                     <div className="flex-shrink-0">
                       {module.completed ? (
-                        <CheckCircle2 size={24} className="opacity-75" />
+                        <CheckCircle2 size={24} className={`${getTypeAccent(module.type)} animate-in zoom-in-50 duration-300`} />
                       ) : (
-                        <Circle size={24} className="opacity-40" />
+                        <Circle size={24} className="text-muted-foreground opacity-40" />
                       )}
                     </div>
                   </div>
                   <Button
-                    className="w-full mt-3 bg-primary/20 text-primary hover:bg-primary/30 border border-current"
+                    variant="outline"
                     size="sm"
+                    className={`w-full mt-3 ${getTypeAccent(module.type)}`}
                   >
-                    {module.completed ? "Review" : "Start"} <ChevronRight size={16} />
+                    {module.completed ? "Review" : "Start"}
+                    <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" />
                   </Button>
                 </Card>
               ))}
