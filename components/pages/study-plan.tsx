@@ -109,9 +109,11 @@ export default function StudyPlan({ onNavigate, goal, focusModuleId, onSelectGoa
   }, [goal?.title])
 
   // If we arrived here from a specific task (e.g. clicked from Dashboard's
-  // "Today's Tasks", which is real backend-computed scheduling), that exact
-  // module is the source of truth for "today" -- takes priority over the
-  // day-elapsed guess below.
+  // "Today's Tasks"), that exact module wins. Otherwise just find the first
+  // incomplete module in plan order -- no date/day-elapsed math. An earlier
+  // version tried to guess "today" from studyPlan.length - goal.daysLeft,
+  // but that's a fragile approximation; "next thing you haven't finished"
+  // is simpler, always correct, and exactly what "continue here" means.
   const focusedModuleLocation = useMemo(() => {
     if (focusModuleId == null) return null
     for (let d = 0; d < studyPlan.length; d++) {
@@ -121,32 +123,17 @@ export default function StudyPlan({ onNavigate, goal, focusModuleId, onSelectGoa
     return null
   }, [studyPlan, focusModuleId])
 
-  // Fallback when there's no specific task to focus (e.g. arriving via the
-  // sidebar or a freshly created goal): the AI invents a `day.date` string
-  // (seen values like "2023-11-01") that isn't tied to real calendar time,
-  // so it can't be used to find "today". Instead, the plan was generated for
-  // exactly `goal.daysLeft` days *at generation time* (see the fetchPlan
-  // request above), and `goal.daysLeft` is a live, server-computed countdown
-  // that shrinks by 1 each real day -- so `studyPlan.length - goal.daysLeft`
-  // is a reliable, backend-free count of days elapsed since the plan started.
-  const currentDayIndex = useMemo(() => {
-    if (focusedModuleLocation) return focusedModuleLocation.dayIndex
-    if (!studyPlan.length) return -1
-    const elapsed = studyPlan.length - (goal?.daysLeft ?? 0)
-    return Math.max(0, Math.min(elapsed, studyPlan.length - 1))
-  }, [studyPlan.length, goal?.daysLeft, focusedModuleLocation])
-
-  // The module to scroll to and badge "Continue here" -- the exact clicked
-  // task if we have one, otherwise the first incomplete module from today.
-  const nextModule = useMemo(() => {
-    if (focusedModuleLocation) return focusedModuleLocation.module
-    if (currentDayIndex < 0) return null
-    for (let d = currentDayIndex; d < studyPlan.length; d++) {
+  const nextModuleLocation = useMemo(() => {
+    if (focusedModuleLocation) return focusedModuleLocation
+    for (let d = 0; d < studyPlan.length; d++) {
       const found = studyPlan[d]?.modules?.find((m: any) => !m.completed)
-      if (found) return found
+      if (found) return { dayIndex: d, module: found }
     }
     return null
-  }, [studyPlan, currentDayIndex, focusedModuleLocation])
+  }, [studyPlan, focusedModuleLocation])
+
+  const nextModule = nextModuleLocation?.module ?? null
+  const nextModuleDayIndex = nextModuleLocation?.dayIndex ?? -1
 
   const moduleRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const hasScrolledToNext = useRef(false)
@@ -287,18 +274,15 @@ export default function StudyPlan({ onNavigate, goal, focusModuleId, onSelectGoa
 
       <div className="space-y-6">
         {studyPlan.map((day, dayIndex) => {
-          const isToday = dayIndex === currentDayIndex
+          const isNextDay = dayIndex === nextModuleDayIndex
           return (
-          <div
-            key={dayIndex}
-            className={`animate-in fade-in-0 duration-200 ${isToday ? 'ring-2 ring-primary/50 rounded-2xl p-4 -m-4' : ''}`}
-          >
+          <div key={dayIndex} className="animate-in fade-in-0 duration-200">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex-1 flex items-center gap-2">
                 <h2 className="text-xl font-bold text-foreground">{day.day}</h2>
-                {isToday && (
+                {isNextDay && (
                   <Badge className="border-transparent bg-gradient-to-r from-primary to-secondary text-primary-foreground">
-                    Today
+                    Up Next
                   </Badge>
                 )}
               </div>
@@ -314,7 +298,7 @@ export default function StudyPlan({ onNavigate, goal, focusModuleId, onSelectGoa
                 <Card
                   key={module.id}
                   ref={(el) => { moduleRefs.current[module.id] = el }}
-                  className={`group p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${getTypeColor(module.type)} ${isNext ? 'ring-2 ring-primary glow-primary' : ''}`}
+                  className={`group p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${getTypeColor(module.type)} ${isNext ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
                   onClick={() => handleModuleClick(module)}
                 >
                   <div className="flex items-start justify-between gap-4">
