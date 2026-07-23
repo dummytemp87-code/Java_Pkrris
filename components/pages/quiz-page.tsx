@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AILoading } from '@/components/ui/ai-loading'
 import { celebrateBig, celebrateSmall } from '@/lib/confetti'
+import { apiFetch } from '@/lib/api'
 
 interface Module {
   id: number
@@ -25,7 +26,6 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
   const [result, setResult] = useState<{ score: number, total: number, percent: number } | null>(null)
   const [subscriptionRequired, setSubscriptionRequired] = useState(false)
 
-  const token = useMemo(() => (typeof window !== 'undefined' ? localStorage.getItem('token') : null), [])
   const base = useMemo(() => process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080', [])
 
   useEffect(() => {
@@ -36,12 +36,9 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
       setError(null)
       setSubscriptionRequired(false)
       try {
-        const res = await fetch(`${base}/api/quiz/generate`, {
+        const res = await apiFetch(`${base}/api/quiz/generate`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ goalTitle, moduleTitle: module.title, moduleId: module.id })
         })
         if (res.status === 402) {
@@ -77,12 +74,9 @@ export default function QuizPage({ onNavigate, goalTitle, module, onProgressUpda
         moduleId: module.id,
         answers: Object.entries(answers).map(([qid, idx]) => ({ questionId: Number(qid), selectedIndex: Number(idx) }))
       }
-      const res = await fetch(`${base}/api/quiz/submit`, {
+      const res = await apiFetch(`${base}/api/quiz/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
       const data = await res.json()

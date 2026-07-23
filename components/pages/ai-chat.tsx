@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { TypingIndicator } from "@/components/ui/typing-indicator"
 import { Send, Lightbulb, Loader2, Lock } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 type Goal = { id: number; title: string; progress: number; daysLeft: number }
 
@@ -47,13 +48,9 @@ export default function AIChat({ goals = [], onNavigate }: { goals?: Goal[]; onN
         ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
         : "http://localhost:8080/api/ai-chat";
       const payloadMessages = [...messages, userMsg].map((m: any) => ({ role: m.role, text: m.text }))
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      const res = await fetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: payloadMessages }),
       })
       if (res.status === 402) {

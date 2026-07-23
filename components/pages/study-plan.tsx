@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { AILoading } from "@/components/ui/ai-loading"
-import { CheckCircle2, Circle, ChevronRight } from "lucide-react"
+import { CheckCircle2, Circle, ChevronRight, Sparkles } from "lucide-react"
 import TaskDetailsModal from "./task-details-modal"
 import { apiFetch } from "@/lib/api"
 
@@ -106,6 +107,44 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
     fetchGoals()
     return () => { cancelled = true }
   }, [goal?.title])
+
+  // The AI invents a `day.date` string (seen values like "2023-11-01") that
+  // isn't tied to real calendar time, so it can't be used to find "today".
+  // Instead: the plan was generated for exactly `goal.daysLeft` days *at
+  // generation time* (see the fetchPlan request above), and `goal.daysLeft`
+  // is a live, server-computed countdown that shrinks by 1 each real day --
+  // so `studyPlan.length - goal.daysLeft` is a reliable, backend-free count
+  // of days elapsed since the plan started.
+  const currentDayIndex = useMemo(() => {
+    if (!studyPlan.length) return -1
+    const elapsed = studyPlan.length - (goal?.daysLeft ?? 0)
+    return Math.max(0, Math.min(elapsed, studyPlan.length - 1))
+  }, [studyPlan.length, goal?.daysLeft])
+
+  // First incomplete module from today onward -- where "Continue here" points.
+  const nextModule = useMemo(() => {
+    if (currentDayIndex < 0) return null
+    for (let d = currentDayIndex; d < studyPlan.length; d++) {
+      const found = studyPlan[d]?.modules?.find((m: any) => !m.completed)
+      if (found) return found
+    }
+    return null
+  }, [studyPlan, currentDayIndex])
+
+  const moduleRefs = useRef<Record<number, HTMLDivElement | null>>({})
+  const hasScrolledToNext = useRef(false)
+
+  useEffect(() => {
+    if (!nextModule || hasScrolledToNext.current) return
+    const el = moduleRefs.current[nextModule.id]
+    if (el) {
+      hasScrolledToNext.current = true
+      const t = setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 300)
+      return () => clearTimeout(t)
+    }
+  }, [nextModule])
 
   const handleModuleClick = (module: Module) => {
     setSelectedModule(module)
@@ -230,12 +269,21 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
       ) : null}
 
       <div className="space-y-6">
-        {studyPlan.map((day, dayIndex) => (
-          <div key={dayIndex} className="animate-in fade-in-0 duration-200">
+        {studyPlan.map((day, dayIndex) => {
+          const isToday = dayIndex === currentDayIndex
+          return (
+          <div
+            key={dayIndex}
+            className={`animate-in fade-in-0 duration-200 ${isToday ? 'ring-2 ring-primary/50 rounded-2xl p-4 -m-4' : ''}`}
+          >
             <div className="flex items-center gap-4 mb-4">
-              <div className="flex-1">
+              <div className="flex-1 flex items-center gap-2">
                 <h2 className="text-xl font-bold text-foreground">{day.day}</h2>
-                <p className="text-sm text-muted-foreground">{day.date || ''}</p>
+                {isToday && (
+                  <Badge className="border-transparent bg-gradient-to-r from-primary to-secondary text-primary-foreground">
+                    Today
+                  </Badge>
+                )}
               </div>
               <div className="text-sm font-semibold text-primary">
                 {day.modules.filter((m: any) => m.completed).length}/{day.modules.length} completed
@@ -243,17 +291,25 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {day.modules.map((module: any) => (
+              {day.modules.map((module: any) => {
+                const isNext = nextModule?.id === module.id
+                return (
                 <Card
                   key={module.id}
-                  className={`group p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${getTypeColor(module.type)}`}
+                  ref={(el) => { moduleRefs.current[module.id] = el }}
+                  className={`group p-4 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${getTypeColor(module.type)} ${isNext ? 'ring-2 ring-primary glow-primary' : ''}`}
                   onClick={() => handleModuleClick(module)}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className={`text-xs font-semibold uppercase ${getTypeAccent(module.type)}`}>{getTypeLabel(module.type)}</span>
                         <span className="text-xs text-muted-foreground">{module.duration}</span>
+                        {isNext && (
+                          <Badge className="border-transparent bg-gradient-to-r from-primary to-secondary text-primary-foreground gap-1">
+                            <Sparkles size={10} /> Continue here
+                          </Badge>
+                        )}
                       </div>
                       <h3 className="font-semibold text-foreground">{module.title}</h3>
                     </div>
@@ -274,10 +330,12 @@ export default function StudyPlan({ onNavigate, goal, onSelectGoal, onStartLearn
                     <ChevronRight size={16} className="transition-transform group-hover:translate-x-0.5" />
                   </Button>
                 </Card>
-              ))}
+                )
+              })}
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       <TaskDetailsModal

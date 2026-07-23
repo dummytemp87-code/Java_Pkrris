@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { AILoading } from "@/components/ui/ai-loading"
 import { Upload, Plus, X } from "lucide-react"
 import { celebrateSmall } from "@/lib/confetti"
+import { apiFetch } from "@/lib/api"
 
 interface Goal {
   id: number;
@@ -53,17 +54,13 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
     setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title while analysis runs
 
     const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     const formData = new FormData();
     formData.append('file', file);
 
     setAnalyzingSyllabus(true);
     try {
-      const res = await fetch(`${base}/api/goals/analyze-syllabus`, {
+      const res = await apiFetch(`${base}/api/goals/analyze-syllabus`, {
         method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: formData,
       })
       const data = await res.json();
@@ -85,14 +82,10 @@ export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: Go
     if (submitting) return;
     setSubmitting(true);
     const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
-      const res = await fetch(`${base}/api/goals`, {
+      const res = await apiFetch(`${base}/api/goals`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: goalTitle,
           description,

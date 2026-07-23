@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useTheme } from "next-themes"
+import { useState } from "react"
 import {
   LayoutDashboard,
   Target,
@@ -12,8 +11,6 @@ import {
   Settings,
   Menu,
   X,
-  Moon,
-  Sun,
   CreditCard,
 } from "lucide-react"
 
@@ -25,11 +22,6 @@ interface NavigationProps {
 
 export default function Navigation({ currentPage, onNavigate, showLearn }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => setMounted(true), [])
-  const isDark = mounted && theme === "dark"
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -44,10 +36,6 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
     { id: "billing", label: "Billing", icon: CreditCard },
     { id: "settings", label: "Settings", icon: Settings },
   ]
-
-  const toggleTheme = () => {
-    setTheme(isDark ? "light" : "dark")
-  }
 
   return (
     <>
@@ -93,17 +81,6 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
             )
           })}
         </nav>
-
-        {/* Theme toggle */}
-        <div className="absolute bottom-6 left-4 right-4">
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-sidebar-accent/20 text-sidebar-foreground hover:bg-sidebar-accent/30 transition-colors"
-          >
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            <span className="text-sm font-medium">{isDark ? "Light" : "Dark"}</span>
-          </button>
-        </div>
       </aside>
 
       {/* Mobile overlay */}

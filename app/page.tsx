@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Navigation from '@/components/navigation'
+import ThemeToggle from '@/components/theme-toggle'
 import Dashboard from '@/components/pages/dashboard'
 import GoalCreation from '@/components/pages/goal-creation'
 import StudyPlan from '@/components/pages/study-plan'
@@ -204,6 +205,7 @@ export default function Home() {
   if (auth.token) {
     return (
       <div className='flex h-screen'>
+        <ThemeToggle />
         <Navigation
           currentPage={currentPage}
           onNavigate={(page) => { if (page === 'study-plan') setSelectedGoal(null); setCurrentPage(page); }}
