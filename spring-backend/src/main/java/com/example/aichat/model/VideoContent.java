@@ -41,6 +41,17 @@ public class VideoContent {
     @Column(name = "language")
     private String language;
 
+    // When a long video has YouTube chapters and one matches this module's
+    // topic, playback is scoped to that chapter instead of the whole video --
+    // lets one long course video serve multiple days/modules without repeating
+    // the exact same viewing experience. Null means "play from the start" /
+    // "no chapter end bound" (the whole video, as before).
+    @Column(name = "start_seconds")
+    private Integer startSeconds;
+
+    @Column(name = "end_seconds")
+    private Integer endSeconds;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -64,6 +75,10 @@ public class VideoContent {
     public void setUrl(String url) { this.url = url; }
     public String getLanguage() { return language; }
     public void setLanguage(String language) { this.language = language; }
+    public Integer getStartSeconds() { return startSeconds; }
+    public void setStartSeconds(Integer startSeconds) { this.startSeconds = startSeconds; }
+    public Integer getEndSeconds() { return endSeconds; }
+    public void setEndSeconds(Integer endSeconds) { this.endSeconds = endSeconds; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

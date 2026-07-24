@@ -7,11 +7,13 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface VideoContentRepository extends JpaRepository<VideoContent, Long> {
     Optional<VideoContent> findByUserAndGoalTitleAndModuleTitleAndLanguage(User user, String goalTitle, String moduleTitle, String language);
     Optional<VideoContent> findByUserAndGoalTitleAndModuleTitle(User user, String goalTitle, String moduleTitle);
+    List<VideoContent> findByUserAndGoalTitle(User user, String goalTitle);
     void deleteByUserAndGoalTitle(User user, String goalTitle);
 
     @Modifying

@@ -27,7 +27,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
   const [articleContent, setArticleContent] = useState<string>("")
   const [videoLoading, setVideoLoading] = useState(false)
   const [videoError, setVideoError] = useState<string | null>(null)
-  const [video, setVideo] = useState<{ videoId: string; url: string; videoTitle?: string; channelTitle?: string } | null>(null)
+  const [video, setVideo] = useState<{ videoId: string; url: string; videoTitle?: string; channelTitle?: string; startSeconds?: number; endSeconds?: number } | null>(null)
   const [moduleProgress, setModuleProgress] = useState<{ percent: number; done: number; total: number }>({ percent: 0, done: 0, total: 0 })
 
   const setState = (newState: any) => {
@@ -111,7 +111,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
           })
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error || 'Failed to load video');
-          if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle });
+          if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle, startSeconds: data.startSeconds, endSeconds: data.endSeconds });
           lastErr = null;
           break;
         } catch (e: any) {
@@ -319,7 +319,13 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                     <div className="aspect-video rounded-lg overflow-hidden">
                       <iframe
                         className="w-full h-full"
-                        src={`https://www.youtube.com/embed/${video.videoId}`}
+                        src={(() => {
+                          const params = new URLSearchParams()
+                          if (video.startSeconds) params.set('start', String(video.startSeconds))
+                          if (video.endSeconds) params.set('end', String(video.endSeconds))
+                          const qs = params.toString()
+                          return `https://www.youtube.com/embed/${video.videoId}${qs ? `?${qs}` : ''}`
+                        })()}
                         title={video.videoTitle || 'YouTube video player'}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
@@ -328,6 +334,11 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                     <div className="mt-2">
                       {video.videoTitle ? <p className="text-sm font-medium text-foreground">{video.videoTitle}</p> : null}
                       {video.channelTitle ? <p className="text-xs text-muted-foreground">{video.channelTitle}</p> : null}
+                      {video.startSeconds ? (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Playing from {Math.floor(video.startSeconds / 60)}:{String(video.startSeconds % 60).padStart(2, '0')} -- this video covers multiple topics, scoped to the part covering this module.
+                        </p>
+                      ) : null}
                     </div>
                   </>
                 ) : (

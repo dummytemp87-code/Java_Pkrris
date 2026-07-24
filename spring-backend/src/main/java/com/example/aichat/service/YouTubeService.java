@@ -11,8 +11,12 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,6 +69,24 @@ public class YouTubeService {
     private static final int LONG_BUCKET_THRESHOLD_MINUTES = 20;
     private static final Pattern HOURS_PATTERN = Pattern.compile("(\\d+)\\s*hour");
     private static final Pattern MINUTES_PATTERN = Pattern.compile("(\\d+)\\s*min");
+
+    // Matches YouTube-style chapter lines in a video description. Tolerates a
+    // short decorative prefix before the timestamp (bullet/emoji, common on
+    // channels like freeCodeCamp: "⌨️ (0:00) Introduction") and optional
+    // parentheses around the timestamp itself, in addition to the plain
+    // "0:00 Introduction" / "1:23:45 - Kinematics basics" forms.
+    private static final Pattern CHAPTER_LINE = Pattern.compile(
+            "(?m)^[^\\d\\n]{0,6}\\(?(?:(\\d+):)?(\\d{1,2}):(\\d{2})\\)?\\s*[-:]?\\s*(.+)$"
+    );
+    private static final Set<String> STOPWORDS = Set.of(
+            "a", "an", "the", "of", "to", "in", "and", "for", "on", "with", "is", "are", "part", "chapter"
+    );
+    // Words too generic to count as a real topic match on their own -- two
+    // unrelated chapters both called "Introduction" shouldn't be treated as
+    // the same topic just because they share that one word.
+    private static final Set<String> GENERIC_WORDS = Set.of(
+            "introduction", "overview", "basics", "basic", "fundamentals", "intro", "review", "summary", "recap"
+    );
 
     @Value("${youtube.apiKey:}")
     private String apiKey;
@@ -344,6 +366,119 @@ public class YouTubeService {
             return Map.of();
         }
         return metaById;
+    }
+
+    public static final class ChapterMatch {
+        public final int startSeconds;
+        public final Integer endSeconds; // null = play to the end of the video
+        public ChapterMatch(int startSeconds, Integer endSeconds) {
+            this.startSeconds = startSeconds; this.endSeconds = endSeconds;
+        }
+    }
+
+    private static final class Chapter {
+        final int seconds;
+        final String title;
+        Chapter(int seconds, String title) { this.seconds = seconds; this.title = title; }
+    }
+
+    /**
+     * For each of the given video IDs that has a real YouTube chapter list and
+     * a chapter whose title shares a specific (non-generic) word with
+     * moduleTitle, returns the matching chapter's start/end seconds. Lets one
+     * long course video serve several different modules by pointing each at a
+     * different, actually-relevant chapter instead of either repeating the
+     * same unscoped video or picking a worse one just to be different.
+     */
+    public Map<String, ChapterMatch> findChapterMatches(List<String> videoIds, String moduleTitle) {
+        if (videoIds.isEmpty() || moduleTitle == null || moduleTitle.isBlank()) return Map.of();
+        Map<String, String> descriptions = fetchDescriptions(videoIds);
+        Map<String, ChapterMatch> result = new HashMap<>();
+        for (Map.Entry<String, String> e : descriptions.entrySet()) {
+            List<Chapter> chapters = parseChapters(e.getValue());
+            if (chapters.isEmpty()) continue;
+            bestChapterMatch(chapters, moduleTitle).ifPresent(c ->
+                    result.put(e.getKey(), new ChapterMatch(c.seconds, chapterEndSeconds(chapters, c))));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> fetchDescriptions(List<String> videoIds) {
+        Map<String, String> result = new HashMap<>();
+        try {
+            URI uri = UriComponentsBuilder
+                    .fromHttpUrl("https://www.googleapis.com/youtube/v3/videos")
+                    .queryParam("part", "snippet")
+                    .queryParam("id", String.join(",", videoIds))
+                    .queryParam("key", apiKey)
+                    .build()
+                    .encode()
+                    .toUri();
+            ResponseEntity<Map> resp = restTemplate.getForEntity(uri, Map.class);
+            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) return Map.of();
+            Object rawItems = resp.getBody().get("items");
+            if (!(rawItems instanceof List<?> list)) return Map.of();
+            for (Object o : list) {
+                if (!(o instanceof Map<?, ?> videoMap)) continue;
+                Object id = videoMap.get("id");
+                Object snippetObj = videoMap.get("snippet");
+                if (id == null || !(snippetObj instanceof Map<?, ?> snippet)) continue;
+                String description = str(snippet.get("description"));
+                if (description != null) result.put(id.toString(), description);
+            }
+        } catch (RestClientException ignored) {
+            return Map.of();
+        }
+        return result;
+    }
+
+    /** YouTube itself requires >=3 timestamp lines starting at/near 0:00 to treat a description as real chapters. */
+    private List<Chapter> parseChapters(String description) {
+        if (description == null) return List.of();
+        List<Chapter> chapters = new ArrayList<>();
+        Matcher m = CHAPTER_LINE.matcher(description);
+        while (m.find()) {
+            int hours = m.group(1) != null ? Integer.parseInt(m.group(1)) : 0;
+            int minutes = Integer.parseInt(m.group(2));
+            int seconds = Integer.parseInt(m.group(3));
+            String title = m.group(4).trim();
+            if (title.isEmpty()) continue;
+            chapters.add(new Chapter(hours * 3600 + minutes * 60 + seconds, title));
+        }
+        chapters.sort(java.util.Comparator.comparingInt(c -> c.seconds));
+        if (chapters.size() < 3 || chapters.get(0).seconds > 5) return List.of();
+        return chapters;
+    }
+
+    private Optional<Chapter> bestChapterMatch(List<Chapter> chapters, String moduleTitle) {
+        Set<String> moduleWords = significantWords(moduleTitle);
+        if (moduleWords.isEmpty()) return Optional.empty();
+
+        Chapter best = null;
+        int bestScore = 0;
+        for (Chapter c : chapters) {
+            Set<String> overlap = new HashSet<>(moduleWords);
+            overlap.retainAll(significantWords(c.title));
+            boolean hasSpecificOverlap = overlap.stream().anyMatch(w -> !GENERIC_WORDS.contains(w));
+            if (!hasSpecificOverlap) continue;
+            if (overlap.size() > bestScore) { bestScore = overlap.size(); best = c; }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    private Integer chapterEndSeconds(List<Chapter> chapters, Chapter matched) {
+        int idx = chapters.indexOf(matched);
+        if (idx < 0 || idx == chapters.size() - 1) return null; // last chapter -- play to the end
+        return chapters.get(idx + 1).seconds;
+    }
+
+    private Set<String> significantWords(String s) {
+        Set<String> words = new HashSet<>();
+        for (String w : s.toLowerCase().split("[^a-z0-9]+")) {
+            if (w.length() > 2 && !STOPWORDS.contains(w)) words.add(w);
+        }
+        return words;
     }
 
     private String title(Map<String, Object> item) {
