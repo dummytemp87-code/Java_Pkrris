@@ -61,7 +61,10 @@ public class UserSettingsController {
         User user = userOpt.get();
         Optional<UserSettings> settings = settingsRepository.findByUser(user);
         if (settings.isEmpty()) {
-            return ResponseEntity.ok(Map.of("theme", "light", "language", "english", "languages", List.of("english"), "soundEnabled", true));
+            return ResponseEntity.ok(Map.of(
+                    "theme", "light", "language", "english", "languages", List.of("english"),
+                    "soundEnabled", true, "emailNotifications", true, "dailyReminders", true, "weeklyReport", false
+            ));
         }
         UserSettings s = settings.get();
         List<String> languages = parseLanguages(s);
@@ -69,7 +72,10 @@ public class UserSettingsController {
                 "theme", s.getTheme() != null ? s.getTheme() : "light",
                 "language", languages.get(0),
                 "languages", languages,
-                "soundEnabled", s.getSoundEnabled() != null ? s.getSoundEnabled() : Boolean.TRUE
+                "soundEnabled", s.getSoundEnabled() != null ? s.getSoundEnabled() : Boolean.TRUE,
+                "emailNotifications", s.getEmailNotifications() != null ? s.getEmailNotifications() : Boolean.TRUE,
+                "dailyReminders", s.getDailyReminders() != null ? s.getDailyReminders() : Boolean.TRUE,
+                "weeklyReport", s.getWeeklyReport() != null ? s.getWeeklyReport() : Boolean.FALSE
         ));
     }
 
@@ -95,6 +101,9 @@ public class UserSettingsController {
             } catch (Exception ignore) {}
         }
         if (body.getSoundEnabled() != null) s.setSoundEnabled(body.getSoundEnabled());
+        if (body.getEmailNotifications() != null) s.setEmailNotifications(body.getEmailNotifications());
+        if (body.getDailyReminders() != null) s.setDailyReminders(body.getDailyReminders());
+        if (body.getWeeklyReport() != null) s.setWeeklyReport(body.getWeeklyReport());
         settingsRepository.save(s);
         return ResponseEntity.ok(Map.of("ok", true));
     }

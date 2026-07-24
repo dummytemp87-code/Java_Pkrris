@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Bell, Lock, User, Palette, X, Gift, Copy, Check } from "lucide-react"
+import { Bell, Lock, User, Palette, X, Gift, Copy, Check, Mail } from "lucide-react"
 
 const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "english", label: "English" },
@@ -34,6 +35,8 @@ export default function Settings() {
     theme: string;
     languages: string[];
   };
+
+  const { theme: activeTheme, setTheme: setActiveTheme } = useTheme()
 
   const [settings, setSettings] = useState<SettingsState>({
     emailNotifications: true,
@@ -80,7 +83,8 @@ export default function Settings() {
   }
 
   const [loadingSettings, setLoadingSettings] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileSaving, setProfileSaving] = useState(false)
@@ -88,6 +92,11 @@ export default function Settings() {
   const [profileEmail, setProfileEmail] = useState("")
   const [referralCode, setReferralCode] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null)
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpCode, setOtpCode] = useState("")
+  const [otpStatus, setOtpStatus] = useState<'idle' | 'sending' | 'verifying'>('idle')
 
   const [pwdCurrent, setPwdCurrent] = useState("")
   const [pwdNew, setPwdNew] = useState("")
@@ -105,16 +114,24 @@ export default function Settings() {
           const theme = data?.theme || 'light'
           const languages = Array.isArray(data?.languages) && data.languages.length > 0 ? data.languages : [data?.language || 'english']
           const soundEnabled = typeof data?.soundEnabled === 'boolean' ? data.soundEnabled : true
-          setSettings((prev) => ({ ...prev, theme, languages, soundEnabled }))
+          const emailNotifications = typeof data?.emailNotifications === 'boolean' ? data.emailNotifications : true
+          const dailyReminders = typeof data?.dailyReminders === 'boolean' ? data.dailyReminders : true
+          const weeklyReport = typeof data?.weeklyReport === 'boolean' ? data.weeklyReport : false
+          setSettings((prev) => ({ ...prev, theme, languages, soundEnabled, emailNotifications, dailyReminders, weeklyReport }))
           if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(languages))
+          // Sync the account-level theme preference into next-themes so it actually
+          // applies visually, not just get stored inertly in the DB.
+          if (theme && theme !== activeTheme) setActiveTheme(theme)
         }
       } catch (e: any) {
         toast.error(e?.message || 'Failed to load settings')
       } finally {
         setLoadingSettings(false)
+        setSettingsLoaded(true)
       }
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -138,18 +155,21 @@ export default function Settings() {
   }, [])
 
   useEffect(() => {
-    const loadReferralCode = async () => {
+    const loadMe = async () => {
       try {
         const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
         const res = await fetch(`${base}/api/auth/me`, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
         const data = await res.json().catch(() => ({}))
-        if (res.ok && data?.referralCode) setReferralCode(data.referralCode)
+        if (res.ok) {
+          if (data?.referralCode) setReferralCode(data.referralCode)
+          setEmailVerified(!!data?.emailVerified)
+        }
       } catch {
-        // ignore -- referral box just won't render
+        // ignore -- referral box just won't render, verification card shows loading state
       }
     }
-    loadReferralCode()
+    loadMe()
   }, [])
 
   const referralLink = referralCode && typeof window !== 'undefined'
@@ -167,50 +187,109 @@ export default function Settings() {
     }
   }
 
-  const handleSave = async () => {
-    setSaveStatus('saving')
-    try {
-      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-      const body = {
-        theme: settings.theme,
-        languages: settings.languages,
-        soundEnabled: settings.soundEnabled,
+  // Auto-save: any change to settings persists on its own, debounced, once the
+  // initial GET has completed (so we never overwrite the saved preferences
+  // with the in-component defaults before they're loaded).
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!settingsLoaded) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(async () => {
+      setAutoSaveStatus('saving')
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        const body = {
+          theme: settings.theme,
+          languages: settings.languages,
+          soundEnabled: settings.soundEnabled,
+          emailNotifications: settings.emailNotifications,
+          dailyReminders: settings.dailyReminders,
+          weeklyReport: settings.weeklyReport,
+        }
+        const res = await fetch(`${base}/api/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify(body)
+        })
+        if (!res.ok) throw new Error('Failed to save settings')
+        setAutoSaveStatus('saved')
+        setTimeout(() => setAutoSaveStatus((s) => (s === 'saved' ? 'idle' : s)), 1500)
+      } catch (e: any) {
+        setAutoSaveStatus('error')
+        toast.error(e?.message || 'Failed to save settings')
       }
-      const res = await fetch(`${base}/api/settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(body)
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || 'Failed to save settings')
-      }
-      if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(settings.languages))
-      setSaveStatus('saved')
-      toast.success('Settings saved')
-      setTimeout(() => setSaveStatus('idle'), 1200)
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to save settings')
-      setSaveStatus('error')
-    }
-  }
+    }, 600)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings, settingsLoaded])
 
   type ToggleKey = 'emailNotifications' | 'dailyReminders' | 'weeklyReport' | 'soundEnabled';
   const handleToggle = (key: ToggleKey) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  type SelectKey = 'theme';
-  const handleChange = (key: SelectKey, value: string) => {
-    setSettings((prev) => ({ ...prev, [key]: value }))
+  const handleThemeChange = (value: string) => {
+    setSettings((prev) => ({ ...prev, theme: value }))
+    setActiveTheme(value) // applies immediately, independent of the debounced backend save
+  }
+
+  const sendVerificationOtp = async () => {
+    setOtpStatus('sending')
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const res = await fetch(`${base}/api/auth/send-verification-otp`, {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Failed to send verification code')
+      setOtpSent(true)
+      toast.success('Verification code sent -- check your email')
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to send verification code')
+    } finally {
+      setOtpStatus('idle')
+    }
+  }
+
+  const verifyEmailOtp = async () => {
+    if (otpCode.trim().length !== 6) return
+    setOtpStatus('verifying')
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080"
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const res = await fetch(`${base}/api/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ otp: otpCode.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Invalid code')
+      setEmailVerified(true)
+      setOtpSent(false)
+      setOtpCode("")
+      toast.success('Email verified')
+    } catch (e: any) {
+      toast.error(e?.message || 'Invalid code')
+    } finally {
+      setOtpStatus('idle')
+    }
   }
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-        <p className="text-muted-foreground">Customize your learning experience</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
+          <p className="text-muted-foreground">Customize your learning experience</p>
+        </div>
+        {settingsLoaded && (
+          <p className="text-xs text-muted-foreground shrink-0 pt-2">
+            {autoSaveStatus === 'saving' ? 'Saving...' : autoSaveStatus === 'saved' ? 'All changes saved' : autoSaveStatus === 'error' ? 'Failed to save' : ''}
+          </p>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -282,6 +361,51 @@ export default function Settings() {
           )}
         </Card>
 
+        {/* Email Verification */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Mail className="text-primary" size={24} />
+            <h2 className="text-xl font-bold text-foreground">Email Verification</h2>
+          </div>
+          {emailVerified === null ? (
+            <Skeleton className="h-10 w-full" />
+          ) : emailVerified ? (
+            <p className="text-sm text-foreground flex items-center gap-2">
+              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/15 text-primary"><Check size={12} /></span>
+              Your email is verified.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Verify {profileEmail || "your email"} so you can receive your daily progress update and other account emails.
+              </p>
+              {!otpSent ? (
+                <Button onClick={sendVerificationOtp} disabled={otpStatus === 'sending'}>
+                  {otpStatus === 'sending' ? 'Sending...' : 'Send Verification Code'}
+                </Button>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="6-digit code"
+                    className="w-40 px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary tracking-widest"
+                  />
+                  <Button onClick={verifyEmailOtp} disabled={otpStatus === 'verifying' || otpCode.length !== 6}>
+                    {otpStatus === 'verifying' ? 'Verifying...' : 'Verify'}
+                  </Button>
+                  <Button variant="secondary" onClick={sendVerificationOtp} disabled={otpStatus === 'sending'}>
+                    Resend
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+
         {/* Referral */}
         {referralLink && (
           <Card className="p-6">
@@ -329,7 +453,7 @@ export default function Settings() {
             <div className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
               <div>
                 <p className="font-medium text-foreground">Daily Reminders</p>
-                <p className="text-sm text-muted-foreground">Get reminded to study daily</p>
+                <p className="text-sm text-muted-foreground">Get a daily email with your progress and what's next</p>
               </div>
               <input
                 type="checkbox"
@@ -364,12 +488,12 @@ export default function Settings() {
               <label className="block text-sm font-semibold text-foreground mb-2">Theme</label>
               <select
                 value={settings.theme}
-                onChange={(e) => handleChange("theme", e.target.value)}
+                onChange={(e) => handleThemeChange(e.target.value)}
                 className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
-                <option value="auto">Auto (System)</option>
+                <option value="system">Auto (System)</option>
               </select>
             </div>
             <div>
@@ -424,18 +548,6 @@ export default function Settings() {
                 className="w-5 h-5 rounded border-2 border-primary cursor-pointer"
               />
             </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-foreground">Save</h2>
-              <p className="text-sm text-muted-foreground">Persist your preferences</p>
-            </div>
-            <Button onClick={handleSave} disabled={saveStatus==='saving'}>
-              {saveStatus==='saving' ? 'Saving...' : 'Save Settings'}
-            </Button>
           </div>
         </Card>
 
@@ -499,25 +611,6 @@ export default function Settings() {
             </Button>
 
             <Button
-              className="w-full bg-muted text-foreground hover:bg-muted/80"
-              onClick={async () => {
-                try {
-                  const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
-                  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-                  const res = await fetch(`${base}/api/auth/logout-all`, { method: 'POST', headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
-                  const data = await res.json().catch(() => ({}))
-                  if (!res.ok) throw new Error(data?.error || 'Failed to sign out all devices')
-                  if (data?.token) localStorage.setItem('token', data.token)
-                  toast.success('All devices signed out (current session refreshed)')
-                } catch (e: any) {
-                  toast.error(e?.message || 'Failed to sign out all devices')
-                }
-              }}
-            >
-              Sign Out All Devices
-            </Button>
-
-            <Button
               className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
                 if (typeof window !== 'undefined') {
@@ -529,17 +622,6 @@ export default function Settings() {
               Sign Out
             </Button>
           </div>
-        </Card>
-
-        {/* Danger Zone */}
-        <Card className="p-6 bg-destructive/10 border border-destructive/20">
-          <h2 className="text-xl font-bold text-destructive mb-4">Danger Zone</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            These actions cannot be undone. Please proceed with caution.
-          </p>
-          <Button className="w-full bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            Delete Account
-          </Button>
         </Card>
       </div>
     </div>

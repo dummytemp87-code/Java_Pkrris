@@ -1,12 +1,9 @@
 package com.example.aichat.controller;
 
-import com.example.aichat.model.StudyPlan;
 import com.example.aichat.model.User;
-import com.example.aichat.repo.StudyPlanRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.repo.ModuleCompletionLogRepository;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.aichat.service.ProgressService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -16,8 +13,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 
 @RestController
@@ -27,16 +22,15 @@ public class DashboardController {
     private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
     private final UserRepository userRepository;
-    private final StudyPlanRepository studyPlanRepository;
     private final ModuleCompletionLogRepository moduleCompletionLogRepository;
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ProgressService progressService;
 
     public DashboardController(UserRepository userRepository,
-                               StudyPlanRepository studyPlanRepository,
-                               ModuleCompletionLogRepository moduleCompletionLogRepository) {
+                               ModuleCompletionLogRepository moduleCompletionLogRepository,
+                               ProgressService progressService) {
         this.userRepository = userRepository;
-        this.studyPlanRepository = studyPlanRepository;
         this.moduleCompletionLogRepository = moduleCompletionLogRepository;
+        this.progressService = progressService;
     }
 
     @GetMapping(value = "/summary", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -49,9 +43,9 @@ public class DashboardController {
             LocalDate today = LocalDate.now();
             Integer studyMinutesToday = Optional.ofNullable(moduleCompletionLogRepository.sumMinutesByUserAndDate(user.getId(), today)).orElse(0);
             Integer tasksCompletedToday = Optional.ofNullable(moduleCompletionLogRepository.countByUserAndDate(user.getId(), today)).orElse(0);
-            int streak = computeStreakDays(user.getId());
+            int streak = progressService.computeStreakDays(user.getId());
 
-            List<Map<String, Object>> todaysTasks = computeTodaysTasks(user);
+            List<Map<String, Object>> todaysTasks = progressService.computeTodaysTasks(user);
 
             Map<String, Object> body = new HashMap<>();
             body.put("studyMinutesToday", studyMinutesToday);
@@ -65,86 +59,4 @@ public class DashboardController {
         }
     }
 
-    private int computeStreakDays(Long userId) {
-        int streak = 0;
-        LocalDate day = LocalDate.now();
-        for (int i = 0; i < 60; i++) { // check up to 60 days back
-            Integer minutes = moduleCompletionLogRepository.sumMinutesByUserAndDate(userId, day);
-            if (minutes != null && minutes > 0) streak++;
-            else break;
-            day = day.minusDays(1);
-        }
-        return streak;
-    }
-
-    private List<Map<String, Object>> computeTodaysTasks(User user) {
-        LocalDate today = LocalDate.now();
-        List<StudyPlan> plans = studyPlanRepository.findByUser(user);
-        List<Map<String, Object>> tasks = new ArrayList<>();
-        for (StudyPlan sp : plans) {
-            try {
-                JsonNode root = mapper.readTree(sp.getPlanJson());
-                if (root == null || !root.has("days") || !root.get("days").isArray()) continue;
-                boolean anyAdded = false;
-                for (JsonNode day : root.get("days")) {
-                    String dateStr = day.path("date").asText("").trim();
-                    LocalDate parsed = parseFlexibleDate(dateStr);
-                    if (parsed != null && parsed.equals(today)) {
-                        JsonNode mods = day.path("modules");
-                        if (mods != null && mods.isArray()) {
-                            for (JsonNode m : mods) {
-                                Map<String, Object> t = new LinkedHashMap<>();
-                                t.put("goalTitle", sp.getGoalTitle());
-                                t.put("moduleId", m.path("id").asInt());
-                                t.put("moduleTitle", m.path("title").asText(""));
-                                t.put("type", m.path("type").asText(""));
-                                t.put("duration", m.path("duration").asText(""));
-                                t.put("completed", m.path("completed").asBoolean(false));
-                                tasks.add(t);
-                                anyAdded = true;
-                            }
-                        }
-                    }
-                }
-                // Fallback: add earliest day with uncompleted modules if no exact date match
-                if (!anyAdded) {
-                    for (JsonNode day : root.get("days")) {
-                        JsonNode mods = day.path("modules");
-                        if (mods != null && mods.isArray()) {
-                            for (JsonNode m : mods) {
-                                if (!m.path("completed").asBoolean(false)) {
-                                    Map<String, Object> t = new LinkedHashMap<>();
-                                    t.put("goalTitle", sp.getGoalTitle());
-                                    t.put("moduleId", m.path("id").asInt());
-                                    t.put("moduleTitle", m.path("title").asText(""));
-                                    t.put("type", m.path("type").asText(""));
-                                    t.put("duration", m.path("duration").asText(""));
-                                    t.put("completed", false);
-                                    tasks.add(t);
-                                }
-                            }
-                        }
-                        if (!tasks.isEmpty()) break;
-                    }
-                }
-            } catch (Exception ignore) {}
-        }
-        // Cap tasks to a reasonable number
-        if (tasks.size() > 12) return tasks.subList(0, 12);
-        return tasks;
-    }
-
-    private LocalDate parseFlexibleDate(String s) {
-        if (s == null || s.isBlank()) return null;
-        List<String> patterns = List.of("yyyy-MM-dd", "dd-MM-yyyy", "dd/MM/yyyy", "MM/dd/yyyy");
-        for (String p : patterns) {
-            try {
-                return LocalDate.parse(s, DateTimeFormatter.ofPattern(p));
-            } catch (DateTimeParseException ignore) {}
-        }
-        try { // try default ISO
-            return LocalDate.parse(s);
-        } catch (Exception ignore) {}
-        return null;
-    }
 }

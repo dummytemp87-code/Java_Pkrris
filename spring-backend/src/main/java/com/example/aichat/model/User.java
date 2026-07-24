@@ -35,6 +35,23 @@ public class User {
     @Column(name = "referral_code")
     private String referralCode;
 
+    // Not DB-NOT-NULL: adding a NOT NULL column via ddl-auto=update fails outright
+    // on a table with existing rows (Postgres has no default to backfill with).
+    // Existing users read as null here, which every check below treats as "not
+    // verified" via Boolean.TRUE.equals(...), so this is safe either way.
+    @Column(name = "email_verified")
+    private Boolean emailVerified = false;
+
+    // BCrypt-hashed OTP, matched the same way a password is -- never stored in plaintext.
+    @Column(name = "verification_otp")
+    private String verificationOtp;
+
+    @Column(name = "verification_otp_expires_at")
+    private Instant verificationOtpExpiresAt;
+
+    @Column(name = "verification_otp_sent_at")
+    private Instant verificationOtpSentAt;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -58,4 +75,16 @@ public class User {
 
     public String getReferralCode() { return referralCode; }
     public void setReferralCode(String referralCode) { this.referralCode = referralCode; }
+
+    public Boolean getEmailVerified() { return emailVerified; }
+    public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
+
+    public String getVerificationOtp() { return verificationOtp; }
+    public void setVerificationOtp(String verificationOtp) { this.verificationOtp = verificationOtp; }
+
+    public Instant getVerificationOtpExpiresAt() { return verificationOtpExpiresAt; }
+    public void setVerificationOtpExpiresAt(Instant verificationOtpExpiresAt) { this.verificationOtpExpiresAt = verificationOtpExpiresAt; }
+
+    public Instant getVerificationOtpSentAt() { return verificationOtpSentAt; }
+    public void setVerificationOtpSentAt(Instant verificationOtpSentAt) { this.verificationOtpSentAt = verificationOtpSentAt; }
 }

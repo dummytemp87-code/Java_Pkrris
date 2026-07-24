@@ -29,6 +29,15 @@ public class UserSettings {
     @Column(name = "sound_enabled")
     private Boolean soundEnabled;
 
+    @Column(name = "email_notifications")
+    private Boolean emailNotifications;
+
+    @Column(name = "daily_reminders")
+    private Boolean dailyReminders;
+
+    @Column(name = "weekly_report")
+    private Boolean weeklyReport;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -49,6 +58,15 @@ public class UserSettings {
 
     public Boolean getSoundEnabled() { return soundEnabled; }
     public void setSoundEnabled(Boolean soundEnabled) { this.soundEnabled = soundEnabled; }
+
+    public Boolean getEmailNotifications() { return emailNotifications; }
+    public void setEmailNotifications(Boolean emailNotifications) { this.emailNotifications = emailNotifications; }
+
+    public Boolean getDailyReminders() { return dailyReminders; }
+    public void setDailyReminders(Boolean dailyReminders) { this.dailyReminders = dailyReminders; }
+
+    public Boolean getWeeklyReport() { return weeklyReport; }
+    public void setWeeklyReport(Boolean weeklyReport) { this.weeklyReport = weeklyReport; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

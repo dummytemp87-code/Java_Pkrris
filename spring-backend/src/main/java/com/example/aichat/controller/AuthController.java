@@ -11,7 +11,10 @@ import com.example.aichat.repo.ReferralRepository;
 import com.example.aichat.repo.SubscriptionRepository;
 import com.example.aichat.repo.UserRepository;
 import com.example.aichat.security.JwtService;
+import com.example.aichat.service.EmailService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -23,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -31,8 +35,12 @@ import java.util.Map;
 @RequestMapping("/api/auth")
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private static final String REFERRAL_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I to avoid confusion
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Duration OTP_VALIDITY = Duration.ofMinutes(10);
+    private static final Duration OTP_RESEND_COOLDOWN = Duration.ofSeconds(30);
 
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
@@ -40,19 +48,22 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final EmailService emailService;
 
     public AuthController(UserRepository userRepository,
                           SubscriptionRepository subscriptionRepository,
                           ReferralRepository referralRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
-                          AuthenticationManager authenticationManager) {
+                          AuthenticationManager authenticationManager,
+                          EmailService emailService) {
         this.userRepository = userRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.referralRepository = referralRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
+        this.emailService = emailService;
     }
 
     private String generateReferralCode() {
@@ -146,7 +157,62 @@ public class AuthController {
         body.put("email", user.getEmail());
         body.put("role", user.getRole());
         body.put("referralCode", user.getReferralCode());
+        body.put("emailVerified", Boolean.TRUE.equals(user.getEmailVerified()));
         return ResponseEntity.ok(body);
+    }
+
+    @PostMapping("/send-verification-otp")
+    public ResponseEntity<?> sendVerificationOtp(@AuthenticationPrincipal UserDetails principal) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            return ResponseEntity.ok(Map.of("message", "Email already verified", "emailVerified", true));
+        }
+        Instant lastSent = user.getVerificationOtpSentAt();
+        if (lastSent != null && Duration.between(lastSent, Instant.now()).compareTo(OTP_RESEND_COOLDOWN) < 0) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error", "Please wait before requesting another code"));
+        }
+
+        String otp = String.format("%06d", RANDOM.nextInt(1_000_000));
+        user.setVerificationOtp(passwordEncoder.encode(otp));
+        user.setVerificationOtpExpiresAt(Instant.now().plus(OTP_VALIDITY));
+        user.setVerificationOtpSentAt(Instant.now());
+        userRepository.save(user);
+
+        try {
+            emailService.sendOtpEmail(user.getEmail(), user.getName(), otp);
+        } catch (Exception ex) {
+            log.error("Failed to send verification OTP to {}", user.getEmail(), ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Failed to send verification email"));
+        }
+        return ResponseEntity.ok(Map.of("message", "Verification code sent"));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@AuthenticationPrincipal UserDetails principal, @RequestBody Map<String, String> body) {
+        if (principal == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        User user = userRepository.findByEmail(principal.getUsername()).orElse(null);
+        if (user == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Unauthorized"));
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            return ResponseEntity.ok(Map.of("message", "Email already verified", "emailVerified", true));
+        }
+        String otp = body != null ? body.get("otp") : null;
+        if (otp == null || otp.isBlank()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Verification code is required"));
+        }
+        if (user.getVerificationOtp() == null || user.getVerificationOtpExpiresAt() == null
+                || Instant.now().isAfter(user.getVerificationOtpExpiresAt())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Code expired -- request a new one"));
+        }
+        if (!passwordEncoder.matches(otp.trim(), user.getVerificationOtp())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", "Invalid code"));
+        }
+        user.setEmailVerified(true);
+        user.setVerificationOtp(null);
+        user.setVerificationOtpExpiresAt(null);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("message", "Email verified", "emailVerified", true));
     }
 
     @PostMapping("/change-password")
