@@ -34,6 +34,23 @@ public class YouTubeService {
             Map.entry("ru", "Russian")
     );
 
+    // Non-Latin scripts we can detect directly from the video title, with no
+    // extra API call and no dependence on the uploader ever setting
+    // defaultAudioLanguage/defaultLanguage (most don't). A Hindi video almost
+    // always has a Devanagari title even when audio-language metadata is
+    // absent, so this catches the common case the metadata check alone
+    // misses entirely.
+    private static final Map<String, int[][]> SCRIPT_RANGES = Map.ofEntries(
+            Map.entry("hi", new int[][]{{0x0900, 0x097F}}),           // Devanagari
+            Map.entry("ta", new int[][]{{0x0B80, 0x0BFF}}),           // Tamil
+            Map.entry("te", new int[][]{{0x0C00, 0x0C7F}}),           // Telugu
+            Map.entry("ar", new int[][]{{0x0600, 0x06FF}, {0x0750, 0x077F}}), // Arabic
+            Map.entry("zh", new int[][]{{0x4E00, 0x9FFF}}),           // CJK Unified Ideographs
+            Map.entry("ja", new int[][]{{0x3040, 0x30FF}}),           // Hiragana + Katakana
+            Map.entry("ko", new int[][]{{0xAC00, 0xD7A3}}),           // Hangul
+            Map.entry("ru", new int[][]{{0x0400, 0x04FF}})            // Cyrillic
+    );
+
     @Value("${youtube.apiKey:}")
     private String apiKey;
 
@@ -140,25 +157,51 @@ public class YouTubeService {
     }
 
     /**
-     * Looks up real language metadata (defaultAudioLanguage/defaultLanguage) for the
-     * candidate videos and returns them re-ordered and filtered: videos verified in
-     * the target language come first (original relevance order preserved within that
-     * group), videos with no language metadata at all follow (absence isn't proof of
-     * mismatch -- most uploaders never set this field), and videos verified as a
-     * *different* language are dropped entirely -- a user who asked for English
-     * shouldn't see a video explicitly tagged Hindi just because it ranked well on
-     * text relevance. Returns an empty list if metadata lookup fails outright or
-     * every candidate is explicitly a different language, so the caller can fall
-     * back to a plain, unfiltered ranking rather than surfacing nothing.
+     * Combines two independent language signals to re-order and filter candidates:
+     * (1) real language metadata (defaultAudioLanguage/defaultLanguage) from the
+     * YouTube API, and (2) the script actually used in the video's title, detected
+     * locally with no extra API call. Either signal alone can miss things --
+     * metadata because most uploaders never set it, script detection because it
+     * only covers non-Latin-script languages and a title can be transliterated --
+     * but together they catch the common cases. A video is dropped if *either*
+     * signal says it's a different language; kept and promoted to the front if
+     * *either* says it matches; otherwise kept as an unranked filler (a genuine
+     * match elsewhere in the list always sorts ahead of it).
      */
-    @SuppressWarnings("unchecked")
     private List<Map<String, Object>> rankByLanguage(List<Map<String, Object>> items, String lang) {
+        Map<String, String> metadataById = fetchLanguageMetadata(items);
+
+        List<Map<String, Object>> matched = new ArrayList<>();
+        List<Map<String, Object>> unknown = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            String vid = videoId(item);
+            String metaLang = metadataById.get(vid);
+            String title = title(item);
+
+            boolean metaMismatch = metaLang != null && !matches(metaLang, lang);
+            boolean scriptMismatch = titleScriptMismatch(title, lang);
+            if (metaMismatch || scriptMismatch) continue; // dropped -- a different language
+
+            boolean metaMatch = metaLang != null && matches(metaLang, lang);
+            boolean scriptMatch = titleScriptMatch(title, lang);
+            if (metaMatch || scriptMatch) {
+                matched.add(item);
+            } else {
+                unknown.add(item);
+            }
+        }
+        matched.addAll(unknown);
+        return matched;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> fetchLanguageMetadata(List<Map<String, Object>> items) {
         List<String> ids = new ArrayList<>();
         for (Map<String, Object> item : items) {
             String vid = videoId(item);
             if (!vid.isBlank()) ids.add(vid);
         }
-        if (ids.isEmpty()) return List.of();
+        if (ids.isEmpty()) return Map.of();
 
         Map<String, String> metadataById = new java.util.HashMap<>();
         try {
@@ -171,9 +214,9 @@ public class YouTubeService {
                     .encode()
                     .toUri();
             ResponseEntity<Map> resp = restTemplate.getForEntity(uri, Map.class);
-            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) return List.of();
+            if (!resp.getStatusCode().is2xxSuccessful() || resp.getBody() == null) return Map.of();
             Object rawItems = resp.getBody().get("items");
-            if (!(rawItems instanceof List<?> list)) return List.of();
+            if (!(rawItems instanceof List<?> list)) return Map.of();
             for (Object o : list) {
                 if (!(o instanceof Map<?, ?> videoMap)) continue;
                 Object snippetObj = videoMap.get("snippet");
@@ -186,23 +229,50 @@ public class YouTubeService {
                 if (resolved != null) metadataById.put(id.toString(), resolved);
             }
         } catch (RestClientException ignored) {
-            return List.of();
+            // Metadata is one of two signals -- script detection below still applies
+            // even when this call fails, so we don't bail out entirely here.
+            return Map.of();
         }
+        return metadataById;
+    }
 
-        List<Map<String, Object>> matched = new ArrayList<>();
-        List<Map<String, Object>> unknown = new ArrayList<>();
-        for (Map<String, Object> item : items) {
-            String vid = videoId(item);
-            String metaLang = metadataById.get(vid);
-            if (metaLang == null) {
-                unknown.add(item);
-            } else if (matches(metaLang, lang)) {
-                matched.add(item);
-            }
-            // else: verified as a different language -- dropped.
+    private String title(Map<String, Object> item) {
+        Object snippetObj = item.get("snippet");
+        if (snippetObj instanceof Map<?, ?> snippet) {
+            Object t = snippet.get("title");
+            if (t != null) return t.toString();
         }
-        matched.addAll(unknown);
-        return matched;
+        return null;
+    }
+
+    /** True if the title visibly uses the target language's known non-Latin script. */
+    private boolean titleScriptMatch(String title, String lang) {
+        int[][] ranges = SCRIPT_RANGES.get(lang);
+        return ranges != null && containsScript(title, ranges);
+    }
+
+    /**
+     * True if the title visibly uses a *different* known script than the target
+     * expects -- e.g. Devanagari in a title when the target is English (or any
+     * other language that isn't Hindi), or Arabic script when the target is Hindi.
+     */
+    private boolean titleScriptMismatch(String title, String lang) {
+        if (title == null) return false;
+        for (Map.Entry<String, int[][]> e : SCRIPT_RANGES.entrySet()) {
+            if (e.getKey().equals(lang)) continue;
+            if (containsScript(title, e.getValue())) return true;
+        }
+        return false;
+    }
+
+    private boolean containsScript(String text, int[][] ranges) {
+        if (text == null) return false;
+        return text.codePoints().anyMatch(cp -> {
+            for (int[] range : ranges) {
+                if (cp >= range[0] && cp <= range[1]) return true;
+            }
+            return false;
+        });
     }
 
     private boolean matches(String metadataLang, String target) {
