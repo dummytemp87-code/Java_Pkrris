@@ -199,8 +199,11 @@ export default function Home() {
 
   if (!authChecked) {
     // Avoid flashing the marketing Landing page for returning users while the
-    // token-restore check is still in flight.
-    return <div className='h-screen bg-background' />
+    // token-restore check is still in flight. No background color here --
+    // layout.tsx already renders the animated gradient behind everything, and
+    // painting an opaque bg-background over it just flashes a solid (near-
+    // black in dark mode) screen until the check resolves.
+    return <div className='h-screen' />
   }
 
   if (auth.token) {

@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   CreditCard,
+  LogOut,
 } from "lucide-react"
 
 interface NavigationProps {
@@ -49,7 +50,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative w-64 h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 ${
+        className={`nav-sidebar fixed md:relative w-64 h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -58,7 +59,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
           <p className="text-sm text-sidebar-foreground/60">Learn Smarter</p>
         </div>
 
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
@@ -81,6 +82,21 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
             )
           })}
         </nav>
+
+        <div className="p-4 border-t border-sidebar-border/30">
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('token')
+                window.location.reload()
+              }
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
+          >
+            <LogOut size={20} />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
       </aside>
 
       {/* Mobile overlay */}

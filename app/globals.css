@@ -172,6 +172,19 @@
   }
 }
 
+/* On mobile the sidebar overlays real page content (not just the ambient
+   blob background like on desktop), so the same translucency that reads as
+   polished on desktop reads as muddy/hard-to-read on phones. Raise it to the
+   same opacity as .glass-strong just for the mobile nav overlay. */
+@media (max-width: 767px) {
+  aside.nav-sidebar {
+    background-color: color-mix(in oklch, var(--card) 94%, transparent);
+  }
+  .dark aside.nav-sidebar {
+    background-color: color-mix(in oklch, var(--card) 96%, transparent);
+  }
+}
+
 /* Ambient gradient-mesh background blobs */
 .bg-blob {
   position: absolute;
