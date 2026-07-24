@@ -48,18 +48,24 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar */}
+      {/* Sidebar. Height uses 100dvh (not 100vh) on mobile -- 100vh is the
+          largest possible viewport (address bar hidden), so on load with the
+          address bar visible the sidebar was sized taller than what's
+          actually on screen, pushing Logout below the fold and forcing a
+          scroll. dvh tracks the real visible viewport instead. */}
       <aside
-        className={`nav-sidebar fixed md:relative w-64 h-[calc(100vh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 flex flex-col ${
+        className={`nav-sidebar fixed md:relative w-64 h-[calc(100dvh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="p-6 pt-20 md:pt-6 border-b border-sidebar-border/30">
+        <div className="px-6 pt-16 pb-4 md:pt-6 md:pb-6 border-b border-sidebar-border/30">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
           <p className="text-sm text-sidebar-foreground/60">Learn Smarter</p>
         </div>
 
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+        {/* min-h-0 lets this flex child actually shrink to fit instead of
+            growing to its content size and overflowing the column. */}
+        <nav className="p-3 space-y-1 flex-1 min-h-0 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
@@ -70,7 +76,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
                   onNavigate(item.id)
                   setIsOpen(false)
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${
                   isActive
                     ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/20"
@@ -83,7 +89,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border/30">
+        <div className="p-3 border-t border-sidebar-border/30">
           <button
             onClick={() => {
               if (typeof window !== 'undefined') {
@@ -91,7 +97,7 @@ export default function Navigation({ currentPage, onNavigate, showLearn }: Navig
                 window.location.reload()
               }
             }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
           >
             <LogOut size={20} />
             <span className="font-medium">Logout</span>
