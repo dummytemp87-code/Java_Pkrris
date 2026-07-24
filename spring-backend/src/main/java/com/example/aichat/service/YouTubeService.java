@@ -169,7 +169,11 @@ public class YouTubeService {
                         .queryParam("part", "snippet")
                         .queryParam("q", query)
                         .queryParam("type", "video")
-                        .queryParam("maxResults", 5)
+                        // 10 rather than 5 -- a reputable channel's video often isn't
+                        // YouTube's literal #1-5 text-relevance hit for a specific module
+                        // title, so a narrower pool was excluding it before it ever got a
+                        // chance to be considered by the view-count ordering below.
+                        .queryParam("maxResults", 10)
                         .queryParam("order", "relevance")
                         .queryParam("videoEmbeddable", "true")
                         .queryParam("relevanceLanguage", lang)
@@ -213,18 +217,22 @@ public class YouTubeService {
     }
 
     /**
-     * Combines three independent signals to filter and re-order candidates:
+     * Combines four independent signals to filter and re-order candidates:
      * (1) exact runtime from videos.list contentDetails -- a hard floor that
      * drops anything under MIN_DURATION_SECONDS regardless of language, since a
      * Short is unsuitable no matter what language it's in; (2) real language
      * metadata (defaultAudioLanguage/defaultLanguage); (3) the script actually
-     * used in the video's title, detected locally. Either language signal alone
-     * can miss things -- metadata because most uploaders never set it, script
-     * detection because it only covers non-Latin-script languages -- but
-     * together they catch the common cases. A video is dropped if it's too
-     * short, or if either language signal says it's a different language; kept
-     * and promoted to the front if either language signal says it matches;
-     * otherwise kept as an unranked filler.
+     * used in the video's title, detected locally; (4) view count, as a tiebreak
+     * among whatever survives (1)-(3) -- plain relevance-search order otherwise
+     * just reflects keyword-matching, not quality, so a well-known channel with
+     * far more views than a keyword-stuffed also-ran wasn't reliably winning.
+     * Either language signal alone can miss things -- metadata because most
+     * uploaders never set it, script detection because it only covers
+     * non-Latin-script languages -- but together they catch the common cases. A
+     * video is dropped if it's too short, or if either language signal says
+     * it's a different language; kept if either language signal says it
+     * matches (most-viewed first), otherwise kept as unranked filler
+     * (most-viewed first within that group too).
      */
     private List<Map<String, Object>> rankAndFilter(List<Map<String, Object>> items, String lang) {
         Map<String, VideoMeta> metaById = fetchVideoMetadata(items);
@@ -253,6 +261,14 @@ public class YouTubeService {
                 unknown.add(item);
             }
         }
+        java.util.Comparator<Map<String, Object>> byViewsDesc = java.util.Comparator.comparingLong(
+                (Map<String, Object> item) -> {
+                    VideoMeta meta = metaById.get(videoId(item));
+                    return meta != null && meta.viewCount != null ? meta.viewCount : 0L;
+                }
+        ).reversed();
+        matched.sort(byViewsDesc);
+        unknown.sort(byViewsDesc);
         matched.addAll(unknown);
         return matched;
     }
@@ -260,7 +276,10 @@ public class YouTubeService {
     private static final class VideoMeta {
         final String language;
         final Integer durationSeconds;
-        VideoMeta(String language, Integer durationSeconds) { this.language = language; this.durationSeconds = durationSeconds; }
+        final Long viewCount;
+        VideoMeta(String language, Integer durationSeconds, Long viewCount) {
+            this.language = language; this.durationSeconds = durationSeconds; this.viewCount = viewCount;
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -276,7 +295,7 @@ public class YouTubeService {
         try {
             URI uri = UriComponentsBuilder
                     .fromHttpUrl("https://www.googleapis.com/youtube/v3/videos")
-                    .queryParam("part", "snippet,contentDetails")
+                    .queryParam("part", "snippet,contentDetails,statistics")
                     .queryParam("id", String.join(",", ids))
                     .queryParam("key", apiKey)
                     .build()
@@ -308,7 +327,16 @@ public class YouTubeService {
                     }
                 }
 
-                metaById.put(id.toString(), new VideoMeta(resolvedLang, seconds));
+                Long viewCount = null;
+                Object statisticsObj = videoMap.get("statistics");
+                if (statisticsObj instanceof Map<?, ?> statistics) {
+                    String vc = str(statistics.get("viewCount"));
+                    if (vc != null) {
+                        try { viewCount = Long.parseLong(vc); } catch (NumberFormatException ignore) {}
+                    }
+                }
+
+                metaById.put(id.toString(), new VideoMeta(resolvedLang, seconds, viewCount));
             }
         } catch (RestClientException ignored) {
             // Metadata is one signal among several -- script detection and the
