@@ -3,9 +3,13 @@
 import type React from "react"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { AILoading } from "@/components/ui/ai-loading"
 import { Upload, Plus, X } from "lucide-react"
+import { celebrateSmall } from "@/lib/confetti"
+import { apiFetch } from "@/lib/api"
 
 interface Goal {
   id: number;
@@ -17,15 +21,19 @@ interface Goal {
 interface GoalCreationProps {
   setGoals: React.Dispatch<React.SetStateAction<Goal[]>>;
   onNavigate: (page: string) => void;
+  onGoalCreated?: (goal: Goal) => void;
 }
 
-export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps) {
+export default function GoalCreation({ setGoals, onNavigate, onGoalCreated }: GoalCreationProps) {
   const [goalTitle, setGoalTitle] = useState("")
   const [description, setDescription] = useState("")
   const [deadline, setDeadline] = useState("")
   const [topics, setTopics] = useState<string[]>([])
   const [newTopic, setNewTopic] = useState("")
   const [syllabus, setSyllabus] = useState<File | null>(null)
+  const [analyzingSyllabus, setAnalyzingSyllabus] = useState(false)
+  const [syllabusError, setSyllabusError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   const addTopic = () => {
     if (newTopic.trim()) {
@@ -38,23 +46,71 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
     setTopics(topics.filter((_, i) => i !== index))
   }
 
-  const handleSyllabusUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      const file = e.target.files[0];
-      setSyllabus(file);
-      setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title
+  const handleSyllabusUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyllabus(file);
+    setSyllabusError(null);
+    setGoalTitle(file.name.replace(/\.[^/.]+$/, "")); // Pre-fill title while analysis runs
+
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setAnalyzingSyllabus(true);
+    try {
+      const res = await apiFetch(`${base}/api/goals/analyze-syllabus`, {
+        method: 'POST',
+        body: formData,
+      })
+      const data = await res.json();
+      if (!res.ok) {
+        setSyllabusError(data?.error || 'Failed to analyze syllabus');
+        return;
+      }
+      if (data.title) setGoalTitle(data.title);
+      if (data.description) setDescription(data.description);
+      if (Array.isArray(data.topics) && data.topics.length > 0) setTopics(data.topics);
+    } catch (err) {
+      setSyllabusError('Failed to analyze syllabus. You can still fill in the details manually.');
+    } finally {
+      setAnalyzingSyllabus(false);
     }
   }
 
-  const handleCreateGoal = () => {
-    const newGoal: Goal = {
-      id: Date.now(),
-      title: goalTitle,
-      progress: 0,
-      daysLeft: deadline ? Math.ceil((new Date(deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0,
-    };
-    setGoals((prevGoals) => [...prevGoals, newGoal]);
-    onNavigate("dashboard");
+  const handleCreateGoal = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+    try {
+      const res = await apiFetch(`${base}/api/goals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: goalTitle,
+          description,
+          targetDate: deadline || null,
+          topics,
+        })
+      })
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || 'Failed to create goal');
+        return;
+      }
+      setGoals((prev) => [...prev, data]);
+      celebrateSmall();
+      toast.success(`"${data?.title || goalTitle}" created — let's get started!`);
+      if (onGoalCreated) {
+        onGoalCreated(data);
+      } else {
+        onNavigate("dashboard");
+      }
+    } catch (e) {
+      toast.error('Failed to create goal');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -68,7 +124,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
         {/* Form */}
         <div className="lg:col-span-2 space-y-6">
           {/* Goal Title */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Goal Title</label>
             <input
               type="text"
@@ -80,7 +136,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
           </Card>
 
           {/* Description */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Description</label>
             <textarea
               value={description}
@@ -92,7 +148,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
           </Card>
 
           {/* Deadline */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-2">Target Deadline</label>
             <input
               type="date"
@@ -103,24 +159,39 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
           </Card>
 
           {/* Syllabus Upload */}
-          <Card className="p-6 bg-card border border-border">
+          <Card className="p-6">
             <label className="block text-sm font-semibold text-foreground mb-4">Upload Syllabus (Optional)</label>
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
-              <input type="file" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" />
-              <label htmlFor="syllabus-upload" className="cursor-pointer">
-                <Upload className="mx-auto mb-2 text-muted-foreground" size={32} />
-                <p className="text-sm font-medium text-foreground">
-                  {syllabus ? syllabus.name : "Click to upload or drag and drop"}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">PDF, DOC, or TXT files</p>
+              <input type="file" accept=".pdf,.docx,.txt,.jpg,.jpeg,.png,.webp" onChange={handleSyllabusUpload} className="hidden" id="syllabus-upload" disabled={analyzingSyllabus} />
+              <label htmlFor="syllabus-upload" className={analyzingSyllabus ? "cursor-wait" : "cursor-pointer"}>
+                {analyzingSyllabus ? (
+                  <AILoading compact messages={["Reading your file…", "Finding topics…", "Almost done…"]} />
+                ) : (
+                  <>
+                    <Upload className="mx-auto mb-2 text-muted-foreground" size={32} />
+                    <p className="text-sm font-medium text-foreground">
+                      {syllabus ? syllabus.name : "Click to upload or drag and drop"}
+                    </p>
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, or a photo of your syllabus (JPG/PNG)</p>
               </label>
             </div>
+            {syllabusError && (
+              <p className="text-xs text-destructive mt-2">{syllabusError}</p>
+            )}
+            {!analyzingSyllabus && !syllabusError && syllabus && (
+              <p className="text-xs text-muted-foreground mt-2">Title, description, and topics were filled in from your syllabus — feel free to edit them.</p>
+            )}
+            {!syllabus && (
+              <p className="text-xs text-muted-foreground mt-2">Skipping this? No problem — just fill in the title and add topics manually below.</p>
+            )}
           </Card>
         </div>
 
         {/* Topics Sidebar */}
         <div>
-          <Card className="p-6 bg-card border border-border sticky top-6">
+          <Card className="p-6 sticky top-6">
             <h3 className="text-lg font-bold text-foreground mb-4">Topics to Cover</h3>
 
             <div className="space-y-3 mb-4">
@@ -149,7 +220,7 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
                 placeholder="Add a topic..."
                 className="flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
-              <Button onClick={addTopic} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              <Button onClick={addTopic}>
                 <Plus size={16} />
               </Button>
             </div>
@@ -162,9 +233,10 @@ export default function GoalCreation({ setGoals, onNavigate }: GoalCreationProps
 
             <Button
               onClick={handleCreateGoal}
-              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+              disabled={submitting || !goalTitle.trim()}
+              className="w-full font-semibold"
             >
-              Create Goal
+              {submitting ? "Creating..." : "Create Goal"}
             </Button>
           </Card>
         </div>

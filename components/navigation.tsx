@@ -7,43 +7,36 @@ import {
   Calendar,
   BookOpen,
   MessageSquare,
-  Library,
   BarChart3,
   Settings,
   Menu,
   X,
-  Moon,
-  Sun,
+  CreditCard,
+  LogOut,
 } from "lucide-react"
 
 interface NavigationProps {
   currentPage: string
   onNavigate: (page: string) => void
+  showLearn?: boolean
 }
 
-export default function Navigation({ currentPage, onNavigate }: NavigationProps) {
+export default function Navigation({ currentPage, onNavigate, showLearn }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isDark, setIsDark] = useState(false)
 
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "goals", label: "Goals", icon: Target },
     { id: "study-plan", label: "Study Plan", icon: Calendar },
-    { id: "learning", label: "Learn", icon: BookOpen },
+    // "Learn" is only a meaningful, distinct option once a module has actually
+    // been started (it resumes it) -- until then it's functionally identical
+    // to "Study Plan", which reads as a confusing duplicate to new users.
+    ...(showLearn ? [{ id: "learning", label: "Learn", icon: BookOpen }] : []),
     { id: "chat", label: "AI Tutor", icon: MessageSquare },
-    { id: "resources", label: "Resources", icon: Library },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "billing", label: "Billing", icon: CreditCard },
     { id: "settings", label: "Settings", icon: Settings },
   ]
-
-  const toggleTheme = () => {
-    setIsDark(!isDark)
-    if (isDark) {
-      document.documentElement.classList.remove("dark")
-    } else {
-      document.documentElement.classList.add("dark")
-    }
-  }
 
   return (
     <>
@@ -55,18 +48,24 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar */}
+      {/* Sidebar. Height uses 100dvh (not 100vh) on mobile -- 100vh is the
+          largest possible viewport (address bar hidden), so on load with the
+          address bar visible the sidebar was sized taller than what's
+          actually on screen, pushing Logout below the fold and forcing a
+          scroll. dvh tracks the real visible viewport instead. */}
       <aside
-        className={`fixed md:relative w-64 h-screen bg-sidebar border-r border-sidebar-border transition-transform duration-300 z-40 ${
+        className={`nav-sidebar fixed md:relative w-64 h-[calc(100dvh-1.5rem)] md:h-[calc(100vh-1.5rem)] m-3 glass rounded-2xl transition-transform duration-300 z-40 flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="p-6 border-b border-sidebar-border">
-          <h1 className="text-2xl font-bold text-sidebar-primary">StudyHub</h1>
+        <div className="px-6 pt-16 pb-4 md:pt-6 md:pb-6 border-b border-sidebar-border/30">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
           <p className="text-sm text-sidebar-foreground/60">Learn Smarter</p>
         </div>
 
-        <nav className="p-4 space-y-2">
+        {/* min-h-0 lets this flex child actually shrink to fit instead of
+            growing to its content size and overflowing the column. */}
+        <nav className="p-3 space-y-1 flex-1 min-h-0 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = currentPage === item.id
@@ -77,9 +76,9 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
                   onNavigate(item.id)
                   setIsOpen(false)
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all ${
                   isActive
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                    ? "bg-gradient-to-r from-primary to-secondary text-primary-foreground shadow-md shadow-primary/20"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/20"
                 }`}
               >
@@ -90,14 +89,18 @@ export default function Navigation({ currentPage, onNavigate }: NavigationProps)
           })}
         </nav>
 
-        {/* Theme toggle */}
-        <div className="absolute bottom-6 left-4 right-4">
+        <div className="p-3 border-t border-sidebar-border/30">
           <button
-            onClick={toggleTheme}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-sidebar-accent/20 text-sidebar-foreground hover:bg-sidebar-accent/30 transition-colors"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('token')
+                window.location.reload()
+              }
+            }}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-destructive hover:bg-destructive/10 transition-all"
           >
-            {isDark ? <Sun size={20} /> : <Moon size={20} />}
-            <span className="text-sm font-medium">{isDark ? "Light" : "Dark"}</span>
+            <LogOut size={20} />
+            <span className="font-medium">Logout</span>
           </button>
         </div>
       </aside>

@@ -1,40 +1,257 @@
 'use client'
 
 import { useState, useEffect } from "react"
+import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { TypingIndicator } from "@/components/ui/typing-indicator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, MessageSquare, FileText, BookMarked, Save } from "lucide-react"
+import { CheckCircle2, MessageSquare, FileText, Save, Loader2, ArrowLeft } from "lucide-react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { celebrateBig, celebrateSmall } from "@/lib/confetti"
 
 interface LearningScreenProps {
   onNavigate: (page: string) => void;
   learningState: any;
   setLearningState: (state: any) => void;
+  onProgressUpdated?: () => void | Promise<void>;
 }
 
-export default function LearningScreen({ onNavigate, learningState, setLearningState }: LearningScreenProps) {
-  const { isCompleted, notes, messages, inputMessage } = learningState;
+export default function LearningScreen({ onNavigate, learningState, setLearningState, onProgressUpdated }: LearningScreenProps) {
+  const { isCompleted, notes, messages, inputMessage, chatLoading, selectedGoalTitle, selectedModule } = learningState;
   const [saveStatus, setSaveStatus] = useState("idle"); // idle, saving, saved
+  const [articleLoading, setArticleLoading] = useState(false)
+  const [articleError, setArticleError] = useState<string | null>(null)
+  const [articleContent, setArticleContent] = useState<string>("")
+  const [videoLoading, setVideoLoading] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const [video, setVideo] = useState<{ videoId: string; url: string; videoTitle?: string; channelTitle?: string } | null>(null)
+  const [moduleProgress, setModuleProgress] = useState<{ percent: number; done: number; total: number }>({ percent: 0, done: 0, total: 0 })
 
   const setState = (newState: any) => {
     setLearningState({ ...learningState, ...newState });
   };
 
-  const sendMessage = () => {
+  const topic = selectedModule?.title || "Learning Module";
+
+  useEffect(() => {
+    if (!selectedGoalTitle || !selectedModule?.title) return;
+    let cancelled = false;
+    const run = async () => {
+      setArticleLoading(true);
+      setArticleError(null);
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(`${base}/api/articles/content`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            goalTitle: selectedGoalTitle,
+            moduleTitle: selectedModule.title,
+            moduleType: selectedModule.type,
+            moduleId: selectedModule.id,
+          })
+        })
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Failed to load article');
+        if (!cancelled) setArticleContent((data?.content ?? '').toString());
+      } catch (e: any) {
+        if (!cancelled) setArticleError(e?.message || 'Failed to load article');
+      } finally {
+        if (!cancelled) setArticleLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedGoalTitle, selectedModule?.title])
+
+  useEffect(() => {
+    if (!selectedGoalTitle || !selectedModule?.title) return;
+    let cancelled = false;
+    const run = async () => {
+      setVideoLoading(true);
+      setVideoError(null);
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      let languages: string[] = ['english'];
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('languagePreferences');
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) languages = parsed;
+          } catch {}
+        } else {
+          const legacy = localStorage.getItem('language');
+          if (legacy) languages = [legacy];
+        }
+      }
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const res = await fetch(`${base}/api/videos/content`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              goalTitle: selectedGoalTitle,
+              moduleTitle: selectedModule.title,
+              moduleId: selectedModule.id,
+              languages,
+            })
+          })
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Failed to load video');
+          if (!cancelled) setVideo({ videoId: data.videoId, url: data.url, videoTitle: data.videoTitle, channelTitle: data.channelTitle });
+          lastErr = null;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 200 * attempt));
+        }
+      }
+      if (!cancelled) {
+        if (lastErr) setVideoError(lastErr?.message || 'Failed to load video');
+        setVideoLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [selectedGoalTitle, selectedModule?.title, selectedModule?.id])
+
+  // Fetch module/goal progress for sidebar
+  useEffect(() => {
+    let cancelled = false;
+    const fetchProgress = async () => {
+      if (!selectedGoalTitle) return;
+      try {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(`${base}/api/study-plan/progress?goalTitle=${encodeURIComponent(selectedGoalTitle)}`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          }
+        })
+        const data = await res.json();
+        if (!cancelled && res.ok) {
+          const done = Number(data?.completedModules ?? 0)
+          const total = Number(data?.totalModules ?? 0)
+          const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
+          setModuleProgress({ percent, done, total })
+        }
+      } catch {}
+    }
+    fetchProgress()
+    return () => { cancelled = true };
+  }, [selectedGoalTitle])
+
+  const [completing, setCompleting] = useState(false)
+
+  const toggleCompletion = async () => {
+    if (completing) return
+    if (!selectedGoalTitle || !selectedModule?.id) {
+      setState({ isCompleted: !isCompleted })
+      return
+    }
+    const newVal = !isCompleted
+    setState({ isCompleted: newVal })
+    setCompleting(true)
+    try {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const res = await fetch(`${base}/api/study-plan/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          goalTitle: selectedGoalTitle,
+          moduleId: selectedModule.id,
+          moduleTitle: selectedModule.title,
+          completed: newVal,
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const done = Number(data?.completedModules ?? 0)
+        const total = Number(data?.totalModules ?? 0)
+        const percent = Number(data?.goalProgress ?? (total > 0 ? Math.round(done * 100 / total) : 0))
+        setModuleProgress({ percent, done, total })
+        if (newVal) {
+          if (percent >= 100) {
+            celebrateBig()
+            toast.success(`🎉 "${selectedGoalTitle}" complete! Amazing work.`)
+          } else {
+            celebrateSmall()
+            toast.success("Module complete — nice work!")
+          }
+        }
+        if (onProgressUpdated) await onProgressUpdated()
+      }
+    } catch {} finally {
+      setCompleting(false)
+    }
+  }
+
+  const sendMessage = async () => {
     if (inputMessage.trim()) {
       const newMessages = [...messages, { id: messages.length + 1, role: "user", text: inputMessage }];
-      setState({ messages: newMessages, inputMessage: "" });
-      
-      setTimeout(() => {
-        setState({ messages: [
-          ...newMessages,
-          {
-            id: newMessages.length + 1,
-            role: "tutor",
-            text: "Great question! The derivative measures how a function changes at a specific point...",
+      setState({ messages: newMessages, inputMessage: "", chatLoading: true });
+
+      try {
+        const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL
+          ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
+          : "http://localhost:8080/api/ai-chat";
+        const payloadMessages = newMessages.map((m: any) => ({ role: m.role, text: m.text }));
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        ]})
-      }, 500)
+          body: JSON.stringify({
+            messages: payloadMessages,
+            systemPrompt: `You are a friendly, student-focused AI tutor. Write answers in clean Markdown (headings, lists, bold) with step-by-step clarity. Do NOT use LaTeX or $...$ or \\(...\\) or \\[...\\]. Use plain-text math: exponents with ^ (x^2), fractions as a/b, and inline code for short expressions (like x^2 + 1). Stay strictly on the topic: ${topic}.`,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to get AI response");
+        const data = await res.json();
+        const reply = (data?.reply ?? "I couldn't generate a response.").toString();
+        const clean = reply.replace(/\$/g, "").replace(/\\[()\\[\\]]/g, "");
+        setState({
+          messages: [
+            ...newMessages,
+            {
+              id: newMessages.length + 1,
+              role: "tutor",
+              text: clean,
+            },
+          ],
+          chatLoading: false,
+        });
+      } catch (e) {
+        setState({
+          messages: [
+            ...newMessages,
+            {
+              id: newMessages.length + 1,
+              role: "tutor",
+              text: "Sorry, I had trouble answering that. Please try again.",
+            },
+          ],
+          chatLoading: false,
+        });
+      }
     }
   }
 
@@ -57,14 +274,22 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground mb-1">Power Rule & Chain Rule</h1>
-          <p className="text-muted-foreground">Calculus Fundamentals</p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 min-w-0">
+          <Button variant="outline" onClick={() => onNavigate('study-plan')} className="flex items-center shrink-0 w-fit">
+            <ArrowLeft size={16} className="mr-2" />
+            <span className="hidden sm:inline">Back to Study Plan</span>
+            <span className="sm:hidden">Back</span>
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1">{topic}</h1>
+            <p className="text-muted-foreground">{selectedGoalTitle || 'Personalized Learning'}</p>
+          </div>
         </div>
         <Button
-          onClick={() => setState({ isCompleted: !isCompleted })}
-          className={`${isCompleted ? "bg-green-600 hover:bg-green-700" : "bg-primary hover:bg-primary/90"} text-white`}
+          onClick={toggleCompletion}
+          disabled={completing}
+          className={`shrink-0 w-full sm:w-auto ${isCompleted ? "bg-none bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
         >
           <CheckCircle2 size={20} className="mr-2" />
           {isCompleted ? "Completed" : "Mark Complete"}
@@ -83,39 +308,60 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Video Tab */}
             <TabsContent value="video" className="mt-4">
-              <Card className="p-4 bg-card border border-border">
-                <div className="aspect-video bg-muted rounded-lg">
-                  {/* Placeholder for video player */}
-                </div>
+              <Card className="p-4">
+                {videoLoading ? (
+                  <Skeleton className="aspect-video w-full rounded-lg" />
+                ) : videoError ? (
+                  <p className="text-sm text-red-600">{videoError}</p>
+                ) : video && video.videoId ? (
+                  <>
+                    <div className="aspect-video rounded-lg overflow-hidden">
+                      <iframe
+                        className="w-full h-full"
+                        src={`https://www.youtube.com/embed/${video.videoId}`}
+                        title={video.videoTitle || 'YouTube video player'}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    </div>
+                    <div className="mt-2">
+                      {video.videoTitle ? <p className="text-sm font-medium text-foreground">{video.videoTitle}</p> : null}
+                      {video.channelTitle ? <p className="text-xs text-muted-foreground">{video.channelTitle}</p> : null}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No video available.</p>
+                )}
               </Card>
             </TabsContent>
 
             {/* Article Tab */}
             <TabsContent value="article" className="mt-4">
-              <Card className="p-6 bg-card border border-border">
-                <div className="prose prose-sm max-w-none text-foreground">
-                  <h3 className="font-semibold mb-4">The Power Rule Explained</h3>
-                  <p className="text-sm leading-relaxed mb-4">
-                    The power rule is one of the most fundamental rules in calculus. It states that if f(x) = x^n, then
-                    f'(x) = n·x^(n-1).
-                  </p>
-                  <p className="text-sm leading-relaxed mb-4">
-                    This rule applies to any real number n, making it incredibly versatile for differentiating
-                    polynomial functions.
-                  </p>
-                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 my-4">
-                    <p className="text-sm font-mono">d/dx(x^n) = n·x^(n-1)</p>
+              <Card className="p-6">
+                {articleLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-4/5" />
                   </div>
-                  <p className="text-sm leading-relaxed">
-                    Let's look at some examples to solidify your understanding...
-                  </p>
-                </div>
+                ) : articleError ? (
+                  <p className="text-sm text-red-600">{articleError}</p>
+                ) : articleContent ? (
+                  <div className="prose prose-sm max-w-none text-foreground">
+                    <ReactMarkdown className="markdown" remarkPlugins={[remarkGfm]}>
+                      {articleContent}
+                    </ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Select a module to load content.</p>
+                )}
               </Card>
             </TabsContent>
 
             {/* Notes Tab */}
             <TabsContent value="notes" className="mt-4">
-              <Card className="p-6 bg-card border border-border">
+              <Card className="p-6">
                 <textarea
                   value={notes}
                   onChange={(e) => setState({ notes: e.target.value })}
@@ -126,7 +372,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                   <Button 
                     onClick={handleSaveNotes} 
                     disabled={saveStatus === 'saving'}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                    className="disabled:opacity-50"
                   >
                     <Save size={16} className="mr-2" />
                     {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved!' : 'Save Notes'}
@@ -142,7 +388,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
             {/* Chat Tab */}
             <TabsContent value="chat" className="mt-4">
-              <Card className="p-6 bg-card border border-border flex flex-col h-96">
+              <Card className="p-6 flex flex-col h-96">
                 <div className="flex-1 overflow-y-auto mb-4 space-y-4">
                   {messages.map((msg: any) => (
                     <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -151,21 +397,33 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
                           msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
                         }`}
                       >
-                        <p className="text-sm">{msg.text}</p>
+                        {msg.role === "tutor" ? (
+                          <div className="text-sm leading-relaxed">
+                            <ReactMarkdown className="markdown" remarkPlugins={[remarkGfm]}>
+                              {msg.text}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                        )}
                       </div>
                     </div>
                   ))}
+                  {chatLoading && <TypingIndicator />}
                 </div>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={inputMessage}
                     onChange={(e) => setState({ inputMessage: e.target.value })}
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && !chatLoading && sendMessage()}
                     placeholder="Ask your tutor..."
+                    autoComplete="off"
                     className="flex-1 px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    disabled={!!chatLoading}
                   />
-                  <Button onClick={sendMessage} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  <Button onClick={sendMessage} disabled={!!chatLoading}>
+                    {chatLoading ? <Loader2 size={16} className="mr-2 animate-spin" /> : null}
                     Send
                   </Button>
                 </div>
@@ -176,54 +434,33 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
 
         {/* Sidebar */}
         <div className="space-y-4">
-          {/* Learning Resources */}
-          <Card className="p-4 bg-card border border-border">
-            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-              <BookMarked size={18} />
-              Resources
-            </h3>
-            <div className="space-y-2">
-              <div className="p-3 rounded-lg bg-blue-50 border-l-4 border-l-blue-500 cursor-pointer hover:bg-blue-100 transition-colors">
-                <p className="text-sm font-medium text-blue-900">Video Lecture</p>
-                <p className="text-xs text-blue-700">15 min</p>
-              </div>
-              <div className="p-3 rounded-lg bg-green-50 border-l-4 border-l-green-500 cursor-pointer hover:bg-green-100 transition-colors">
-                <p className="text-sm font-medium text-green-900">Reading Material</p>
-                <p className="text-xs text-green-700">8 pages</p>
-              </div>
-              <div className="p-3 rounded-lg bg-orange-50 border-l-4 border-l-orange-500 cursor-pointer hover:bg-orange-100 transition-colors">
-                <p className="text-sm font-medium text-orange-900">Practice Problems</p>
-                <p className="text-xs text-orange-700">10 questions</p>
-              </div>
-            </div>
-          </Card>
-
           {/* Progress */}
-          <Card className="p-4 bg-card border border-border">
+          <Card className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Module Progress</h3>
             <div className="space-y-3">
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-sm text-foreground">Completion</span>
-                  <span className="text-sm font-semibold text-primary">75%</span>
+                  <span className="text-sm font-semibold text-primary">{moduleProgress.percent}%</span>
                 </div>
                 <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full w-3/4 bg-primary rounded-full" />
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${moduleProgress.percent}%` }} />
                 </div>
+                <div className="mt-1 text-xs text-muted-foreground">{moduleProgress.done}/{moduleProgress.total} modules completed</div>
               </div>
             </div>
           </Card>
 
           {/* Quick Actions */}
-          <Card className="p-4 bg-card border border-border">
+          <Card className="p-4">
             <h3 className="font-semibold text-foreground mb-3">Quick Actions</h3>
             <div className="space-y-2">
-              <Button onClick={handleDownloadNotes} className="w-full bg-secondary text-secondary-foreground hover:bg-secondary/90 justify-start">
-                <FileText size={16} className="mr-2" />
+              <Button onClick={handleDownloadNotes} variant="outline" className="w-full justify-start">
+                <FileText size={16} className="mr-2 text-secondary" />
                 Download Notes
               </Button>
-              <Button onClick={() => onNavigate('chat')} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 justify-start">
-                <MessageSquare size={16} className="mr-2" />
+              <Button onClick={() => onNavigate('chat')} variant="outline" className="w-full justify-start">
+                <MessageSquare size={16} className="mr-2 text-accent" />
                 Ask Question
               </Button>
             </div>

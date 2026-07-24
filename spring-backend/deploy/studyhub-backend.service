@@ -1,0 +1,18 @@
+[Unit]
+Description=StudyHub Spring Boot backend
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Java_Pkrris/spring-backend
+EnvironmentFile=/etc/studyhub-backend.env
+# Memory flags tuned for a 1GB Oracle Always Free micro VM (VM.Standard.E2.1.Micro).
+# Without a cap the JVM's default heap sizing plus Tomcat/Hibernate/Metaspace overhead
+# can exceed physical RAM and get OOM-killed by the kernel.
+ExecStart=/usr/bin/java -Xmx450m -Xss256k -XX:MaxMetaspaceSize=180m -XX:+UseSerialGC -jar /home/ubuntu/Java_Pkrris/spring-backend/target/aichat-0.0.1-SNAPSHOT.jar
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+
+[Install]
+WantedBy=multi-user.target

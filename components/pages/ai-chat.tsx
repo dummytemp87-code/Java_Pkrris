@@ -5,9 +5,13 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Send, Lightbulb, Loader2 } from "lucide-react"
+import { TypingIndicator } from "@/components/ui/typing-indicator"
+import { Send, Lightbulb, Loader2, Lock } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
-export default function AIChat() {
+type Goal = { id: number; title: string; progress: number; daysLeft: number }
+
+export default function AIChat({ goals = [], onNavigate }: { goals?: Goal[]; onNavigate?: (page: string) => void }) {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -17,13 +21,21 @@ export default function AIChat() {
   ])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false)
 
-  const suggestedQuestions = [
-    "Explain the chain rule with examples",
-    "How do I solve this derivative problem?",
-    "What's the difference between limits and continuity?",
-    "Can you give me practice problems?",
-  ]
+  const suggestedQuestions = goals.length > 0
+    ? [
+        `Explain the basics of ${goals[0].title}`,
+        `What should I focus on first for ${goals[0].title}?`,
+        `Quiz me on ${goals[0].title}`,
+        goals[1] ? `How does ${goals[0].title} relate to ${goals[1].title}?` : `Give me a real-world example of ${goals[0].title}`,
+      ]
+    : [
+        "Explain this concept simply",
+        "Give me a real-world example",
+        "What are common mistakes to avoid?",
+        "Can you quiz me on this?",
+      ]
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return
@@ -35,17 +47,23 @@ export default function AIChat() {
       const endpoint = process.env.NEXT_PUBLIC_BACKEND_URL
         ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/ai-chat`
         : "http://localhost:8080/api/ai-chat";
-      const res = await fetch(endpoint, {
+      const payloadMessages = [...messages, userMsg].map((m: any) => ({ role: m.role, text: m.text }))
+      const res = await apiFetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...messages, userMsg] }),
+        body: JSON.stringify({ messages: payloadMessages }),
       })
+      if (res.status === 402) {
+        setSubscriptionRequired(true)
+        return
+      }
       if (!res.ok) throw new Error("Failed to get AI response")
       const data = await res.json()
       const reply = (data?.reply ?? "I couldn't generate a response.").toString()
+      const clean = reply.replace(/\$/g, "").replace(/\\[()\\[\\]]/g, "")
       setMessages((prev) => [
         ...prev,
-        { id: prev.length + 1, role: "tutor", text: reply },
+        { id: prev.length + 1, role: "tutor", text: clean },
       ])
     } catch (err) {
       setMessages((prev) => [
@@ -57,6 +75,23 @@ export default function AIChat() {
     }
   }
 
+  if (subscriptionRequired) {
+    return (
+      <div className="p-6 md:p-8 max-w-4xl mx-auto h-screen flex flex-col items-center justify-center text-center">
+        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
+          <Lock size={24} className="text-muted-foreground" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground mb-2">Your trial has ended</h2>
+        <p className="text-muted-foreground max-w-sm mb-6">
+          Upgrade to a paid plan to keep chatting with your AI tutor and unlock unlimited AI features.
+        </p>
+        <Button onClick={() => onNavigate?.('billing')} className="px-6">
+          View plans
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto h-screen flex flex-col">
       <div className="mb-6">
@@ -64,7 +99,7 @@ export default function AIChat() {
         <p className="text-muted-foreground">Ask anything about your studies</p>
       </div>
 
-      <Card className="flex-1 p-6 bg-card border border-border flex flex-col mb-6">
+      <Card className="flex-1 p-6 flex flex-col mb-6">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto mb-6 space-y-4">
           {messages.map((msg) => (
@@ -88,6 +123,7 @@ export default function AIChat() {
               </div>
             </div>
           ))}
+          {loading && <TypingIndicator />}
         </div>
 
         {/* Input */}
@@ -98,10 +134,11 @@ export default function AIChat() {
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && sendMessage()}
             placeholder="Type your question..."
+            autoComplete="off"
             className="flex-1 px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             disabled={loading}
           />
-          <Button onClick={sendMessage} disabled={loading} className="bg-primary text-primary-foreground hover:bg-primary/90 px-6">
+          <Button onClick={sendMessage} disabled={loading} className="px-6">
             {loading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
           </Button>
         </div>
@@ -120,7 +157,7 @@ export default function AIChat() {
               onClick={() => {
                 setInput(question)
               }}
-              className="p-3 rounded-lg border border-border bg-card hover:bg-muted transition-colors text-left text-sm text-foreground hover:text-primary font-medium"
+              className="p-3 rounded-lg glass hover:bg-accent/10 transition-colors text-left text-sm text-foreground hover:text-primary font-medium"
             >
               {question}
             </button>
