@@ -43,9 +43,21 @@ export default function Settings() {
     dailyReminders: true,
     weeklyReport: false,
     soundEnabled: true,
-    theme: "light",
+    theme: "system",
     languages: ["english"],
   })
+
+  // The live theme (from next-themes, already correctly restored from its own
+  // localStorage before this component even mounts) is the one source of
+  // truth for what's on screen. Mirror it into settings.theme one-way, purely
+  // so the dropdown displays it and the autosave payload includes it --
+  // settings.theme must never be pushed back onto setActiveTheme, or loading
+  // a stale/default value from the backend would visibly flip the user's
+  // current theme out from under them the moment they open this page.
+  useEffect(() => {
+    if (!activeTheme) return
+    setSettings((prev) => (prev.theme === activeTheme ? prev : { ...prev, theme: activeTheme }))
+  }, [activeTheme])
   const [languageToAdd, setLanguageToAdd] = useState(LANGUAGE_OPTIONS[0].value)
 
   useEffect(() => {
@@ -111,17 +123,15 @@ export default function Settings() {
         const res = await fetch(`${base}/api/settings`, { headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
         if (res.ok) {
           const data = await res.json()
-          const theme = data?.theme || 'light'
+          // theme is deliberately NOT read here -- the mirror effect above
+          // owns it from the live next-themes state, never from this fetch.
           const languages = Array.isArray(data?.languages) && data.languages.length > 0 ? data.languages : [data?.language || 'english']
           const soundEnabled = typeof data?.soundEnabled === 'boolean' ? data.soundEnabled : true
           const emailNotifications = typeof data?.emailNotifications === 'boolean' ? data.emailNotifications : true
           const dailyReminders = typeof data?.dailyReminders === 'boolean' ? data.dailyReminders : true
           const weeklyReport = typeof data?.weeklyReport === 'boolean' ? data.weeklyReport : false
-          setSettings((prev) => ({ ...prev, theme, languages, soundEnabled, emailNotifications, dailyReminders, weeklyReport }))
+          setSettings((prev) => ({ ...prev, languages, soundEnabled, emailNotifications, dailyReminders, weeklyReport }))
           if (typeof window !== 'undefined') localStorage.setItem('languagePreferences', JSON.stringify(languages))
-          // Sync the account-level theme preference into next-themes so it actually
-          // applies visually, not just get stored inertly in the DB.
-          if (theme && theme !== activeTheme) setActiveTheme(theme)
         }
       } catch (e: any) {
         toast.error(e?.message || 'Failed to load settings')
@@ -230,8 +240,9 @@ export default function Settings() {
   }
 
   const handleThemeChange = (value: string) => {
-    setSettings((prev) => ({ ...prev, theme: value }))
-    setActiveTheme(value) // applies immediately, independent of the debounced backend save
+    // Applies immediately; the mirror effect above then copies it into
+    // settings.theme, which is what actually triggers the debounced save.
+    setActiveTheme(value)
   }
 
   const sendVerificationOtp = async () => {

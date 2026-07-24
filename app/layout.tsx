@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={true}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
           <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden bg-background">
             <div
               className="bg-blob bg-primary"

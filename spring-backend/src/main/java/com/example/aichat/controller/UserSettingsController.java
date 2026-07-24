@@ -62,14 +62,14 @@ public class UserSettingsController {
         Optional<UserSettings> settings = settingsRepository.findByUser(user);
         if (settings.isEmpty()) {
             return ResponseEntity.ok(Map.of(
-                    "theme", "light", "language", "english", "languages", List.of("english"),
+                    "theme", "system", "language", "english", "languages", List.of("english"),
                     "soundEnabled", true, "emailNotifications", true, "dailyReminders", true, "weeklyReport", false
             ));
         }
         UserSettings s = settings.get();
         List<String> languages = parseLanguages(s);
         return ResponseEntity.ok(Map.of(
-                "theme", s.getTheme() != null ? s.getTheme() : "light",
+                "theme", s.getTheme() != null ? s.getTheme() : "system",
                 "language", languages.get(0),
                 "languages", languages,
                 "soundEnabled", s.getSoundEnabled() != null ? s.getSoundEnabled() : Boolean.TRUE,

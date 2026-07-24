@@ -9,6 +9,8 @@ interface AuthProps {
   onBack?: () => void;
 }
 
+type PendingAuth = { token: string; name: string; email: string; role: string };
+
 export default function Auth({ onAuthenticated, onBack }: AuthProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [name, setName] = useState("");
@@ -17,6 +19,17 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+
+  // After a fresh registration, hold off on onAuthenticated() and show an
+  // inline OTP step instead -- soft-gated, "Skip for now" proceeds exactly
+  // like verification never happened (the account works either way, this
+  // just gives new users the chance to verify right away instead of having
+  // to find it later in Settings).
+  const [step, setStep] = useState<"form" | "verify">("form");
+  const [pendingAuth, setPendingAuth] = useState<PendingAuth | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpStatus, setOtpStatus] = useState<"idle" | "sending" | "verifying">("idle");
+  const [otpError, setOtpError] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
@@ -55,7 +68,14 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
       const token = data?.token as string;
       if (token) {
         localStorage.setItem("token", token);
-        onAuthenticated({ token, name: data?.name, email: data?.email, role: data?.role });
+        const auth: PendingAuth = { token, name: data?.name, email: data?.email, role: data?.role };
+        if (mode === "register") {
+          setPendingAuth(auth);
+          setStep("verify");
+          sendOtp(token);
+        } else {
+          onAuthenticated(auth);
+        }
       } else {
         setError("No token returned by server");
       }
@@ -63,6 +83,45 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
       setError(e?.message || "Request failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendOtp = async (token: string) => {
+    setOtpStatus("sending");
+    setOtpError(null);
+    try {
+      const endpointBase = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const res = await fetch(`${endpointBase}/api/auth/send-verification-otp`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to send verification code");
+    } catch (e: any) {
+      setOtpError(e?.message || "Failed to send verification code");
+    } finally {
+      setOtpStatus("idle");
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!pendingAuth || otpCode.trim().length !== 6) return;
+    setOtpStatus("verifying");
+    setOtpError(null);
+    try {
+      const endpointBase = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080";
+      const res = await fetch(`${endpointBase}/api/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${pendingAuth.token}` },
+        body: JSON.stringify({ otp: otpCode.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Invalid code");
+      onAuthenticated(pendingAuth);
+    } catch (e: any) {
+      setOtpError(e?.message || "Invalid code");
+    } finally {
+      setOtpStatus("idle");
     }
   };
 
@@ -76,6 +135,41 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           ← Back to StudyHub
         </button>
       ) : null}
+      {step === "verify" && pendingAuth ? (
+        <Card className="w-full max-w-md p-6 glass-strong">
+          <h1 className="text-xl font-bold mb-1 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
+          <p className="text-sm text-muted-foreground mb-4">Verify your email</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            We sent a 6-digit code to <span className="text-foreground">{pendingAuth.email}</span>. Enter it below, or skip and verify later from Settings.
+          </p>
+          <div className="mb-4">
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="6-digit code"
+              className="w-full px-3 py-2 rounded-md border border-white/20 dark:border-white/10 bg-white/5 backdrop-blur-sm text-foreground text-center text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
+          {otpError ? (
+            <p className="text-sm text-red-600 mb-3">{otpError}</p>
+          ) : null}
+          <Button disabled={otpStatus === "verifying" || otpCode.length !== 6} onClick={verifyOtp} className="w-full mb-2">
+            {otpStatus === "verifying" ? "Verifying..." : "Verify Email"}
+          </Button>
+          <Button variant="secondary" disabled={otpStatus === "sending"} onClick={() => sendOtp(pendingAuth.token)} className="w-full mb-3">
+            {otpStatus === "sending" ? "Sending..." : "Resend Code"}
+          </Button>
+          <button
+            className="text-sm text-muted-foreground hover:text-foreground hover:underline w-full text-center"
+            onClick={() => onAuthenticated(pendingAuth)}
+          >
+            Skip for now
+          </button>
+        </Card>
+      ) : (
       <Card className="w-full max-w-md p-6 glass-strong">
         <h1 className="text-xl font-bold mb-1 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">StudyHub</h1>
         <p className="text-sm text-muted-foreground mb-4">
@@ -133,6 +227,7 @@ export default function Auth({ onAuthenticated, onBack }: AuthProps) {
           {mode === "login" ? "Create an account" : "Have an account? Login"}
         </button>
       </Card>
+      )}
     </div>
   );
 }
