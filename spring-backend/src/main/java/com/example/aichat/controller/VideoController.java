@@ -97,7 +97,7 @@ public class VideoController {
             String matchedLangCode = null;
             for (String langCode : langCodes) {
                 for (String q : queries) {
-                    Map<String, Object> body = youTubeService.searchBestVideo(q, langCode);
+                    Map<String, Object> body = youTubeService.searchBestVideo(q, langCode, req.getDuration());
                     items = (List<?>) body.get("items");
                     if (items != null && !items.isEmpty()) {
                         Object actual = body.get("actualLanguage");

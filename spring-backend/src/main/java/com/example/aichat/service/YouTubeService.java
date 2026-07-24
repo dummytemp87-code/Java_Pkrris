@@ -9,9 +9,12 @@ import org.springframework.web.util.UriComponentsBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class YouTubeService {
@@ -51,6 +54,18 @@ public class YouTubeService {
             Map.entry("ru", new int[][]{{0x0400, 0x04FF}})            // Cyrillic
     );
 
+    // Absolute floor regardless of the requested search bucket -- catches Shorts
+    // (YouTube's own cap is 3 minutes) even if one slips past videoDuration
+    // bucketing, which isn't perfectly reliable on YouTube's end.
+    private static final int MIN_DURATION_SECONDS = 240;
+
+    // A module's estimated study time (e.g. "30 min", "1 hour") decides which
+    // YouTube videoDuration bucket to search: "medium" (4-20 min) for a normal
+    // focused lesson, "long" (20+ min) for denser/longer modules.
+    private static final int LONG_BUCKET_THRESHOLD_MINUTES = 20;
+    private static final Pattern HOURS_PATTERN = Pattern.compile("(\\d+)\\s*hour");
+    private static final Pattern MINUTES_PATTERN = Pattern.compile("(\\d+)\\s*min");
+
     @Value("${youtube.apiKey:}")
     private String apiKey;
 
@@ -63,53 +78,93 @@ public class YouTubeService {
         this.restTemplate = new RestTemplate(f);
     }
 
-    public Map<String, Object> searchBestVideo(String query, String languageCode) {
+    public Map<String, Object> searchBestVideo(String query, String languageCode, String moduleDuration) {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("YouTube API key not configured (youtube.apiKey)");
         }
         String lang = (languageCode != null && !languageCode.isBlank()) ? languageCode : "en";
         String langName = LANGUAGE_NAMES.get(lang);
         String searchQuery = langName != null ? query + " in " + langName : query;
+        String bucket = pickDurationBucket(moduleDuration);
 
-        Map<String, Object> body = search(searchQuery, lang);
-        List<Map<String, Object>> items = extractItems(body);
-
-        // relevanceLanguage only biases ranking, it doesn't guarantee the result is
-        // actually in that language -- a video in the wrong language can still rank
-        // first on text relevance alone. Verify every candidate's real language
-        // metadata (including for English, which used to skip this check entirely)
-        // and drop any explicitly tagged as a *different* language, so a user who
-        // didn't ask for e.g. Hindi never sees Hindi content just because it ranked
-        // well for the same query text.
-        List<Map<String, Object>> ranked = rankByLanguage(items, lang);
-        if (!ranked.isEmpty()) {
-            body.put("items", ranked);
-            body.put("actualLanguage", lang);
-            return body;
+        SearchResult primary = searchWithFallback(searchQuery, lang, bucket);
+        if (!primary.ranked.isEmpty()) {
+            primary.body.put("items", primary.ranked);
+            primary.body.put("actualLanguage", lang);
+            return primary.body;
         }
         if (lang.equals("en")) {
-            // Every candidate was explicitly tagged as a non-English language --
-            // return the plain ranking rather than nothing.
-            body.put("items", items);
-            body.put("actualLanguage", "en");
-            return body;
+            // Every candidate was explicitly tagged as a non-English language (or too
+            // short) -- return the plain ranking rather than nothing.
+            primary.body.put("items", primary.items);
+            primary.body.put("actualLanguage", "en");
+            return primary.body;
         }
         // No candidate for the requested language survived filtering. Fall back to
         // English, filtered the same way so an unrelated third language can't slip
         // through this path unverified either.
-        Map<String, Object> englishBody = search(query, "en");
-        List<Map<String, Object>> englishItems = extractItems(englishBody);
-        List<Map<String, Object>> englishRanked = rankByLanguage(englishItems, "en");
-        englishBody.put("items", !englishRanked.isEmpty() ? englishRanked : englishItems);
-        englishBody.put("actualLanguage", "en");
-        return englishBody;
+        SearchResult english = searchWithFallback(query, "en", bucket);
+        english.body.put("items", !english.ranked.isEmpty() ? english.ranked : english.items);
+        english.body.put("actualLanguage", "en");
+        return english.body;
     }
 
-    private Map<String, Object> search(String query, String lang) {
+    /**
+     * Searches the given duration bucket, then -- only if nothing survives
+     * filtering -- relaxes one step at a time ("long" -> "medium" -> unconstrained)
+     * rather than jumping straight to unconstrained. A niche topic may genuinely
+     * have no long-form video, but a medium-length one is still closer to what
+     * was asked for than whatever ranks highest with no duration constraint at all.
+     */
+    private SearchResult searchWithFallback(String query, String lang, String bucket) {
+        List<String> attempts = "long".equals(bucket)
+                ? java.util.Arrays.asList("long", "medium", null)
+                : java.util.Arrays.asList(bucket, null);
+
+        Map<String, Object> body = null;
+        List<Map<String, Object>> items = List.of();
+        List<Map<String, Object>> ranked = List.of();
+        for (String attempt : attempts) {
+            body = search(query, lang, attempt);
+            items = extractItems(body);
+            ranked = rankAndFilter(items, lang);
+            if (!ranked.isEmpty()) break;
+        }
+        return new SearchResult(body, items, ranked);
+    }
+
+    private static final class SearchResult {
+        final Map<String, Object> body;
+        final List<Map<String, Object>> items;
+        final List<Map<String, Object>> ranked;
+        SearchResult(Map<String, Object> body, List<Map<String, Object>> items, List<Map<String, Object>> ranked) {
+            this.body = body; this.items = items; this.ranked = ranked;
+        }
+    }
+
+    private String pickDurationBucket(String moduleDuration) {
+        Integer minutes = parseMinutes(moduleDuration);
+        if (minutes == null) return "medium";
+        return minutes > LONG_BUCKET_THRESHOLD_MINUTES ? "long" : "medium";
+    }
+
+    /** Parses strings like "30 min", "45 minutes", "1 hour", or a range like "15-40 min" (uses the upper bound). */
+    private Integer parseMinutes(String s) {
+        if (s == null || s.isBlank()) return null;
+        String lower = s.toLowerCase();
+        Matcher hourMatch = HOURS_PATTERN.matcher(lower);
+        if (hourMatch.find()) return Integer.parseInt(hourMatch.group(1)) * 60;
+        Matcher m = MINUTES_PATTERN.matcher(lower);
+        Integer last = null;
+        while (m.find()) last = Integer.parseInt(m.group(1));
+        return last;
+    }
+
+    private Map<String, Object> search(String query, String lang, String videoDurationBucket) {
         RestClientException lastEx = null;
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
-                URI uri = UriComponentsBuilder
+                UriComponentsBuilder builder = UriComponentsBuilder
                         .fromHttpUrl("https://www.googleapis.com/youtube/v3/search")
                         .queryParam("part", "snippet")
                         .queryParam("q", query)
@@ -119,10 +174,11 @@ public class YouTubeService {
                         .queryParam("videoEmbeddable", "true")
                         .queryParam("relevanceLanguage", lang)
                         .queryParam("safeSearch", "moderate")
-                        .queryParam("key", apiKey)
-                        .build()
-                        .encode()
-                        .toUri();
+                        .queryParam("key", apiKey);
+                if (videoDurationBucket != null && !videoDurationBucket.isBlank()) {
+                    builder = builder.queryParam("videoDuration", videoDurationBucket);
+                }
+                URI uri = builder.build().encode().toUri();
                 ResponseEntity<Map> resp = restTemplate.getForEntity(uri, Map.class);
                 if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
                     return resp.getBody();
@@ -157,27 +213,34 @@ public class YouTubeService {
     }
 
     /**
-     * Combines two independent language signals to re-order and filter candidates:
-     * (1) real language metadata (defaultAudioLanguage/defaultLanguage) from the
-     * YouTube API, and (2) the script actually used in the video's title, detected
-     * locally with no extra API call. Either signal alone can miss things --
-     * metadata because most uploaders never set it, script detection because it
-     * only covers non-Latin-script languages and a title can be transliterated --
-     * but together they catch the common cases. A video is dropped if *either*
-     * signal says it's a different language; kept and promoted to the front if
-     * *either* says it matches; otherwise kept as an unranked filler (a genuine
-     * match elsewhere in the list always sorts ahead of it).
+     * Combines three independent signals to filter and re-order candidates:
+     * (1) exact runtime from videos.list contentDetails -- a hard floor that
+     * drops anything under MIN_DURATION_SECONDS regardless of language, since a
+     * Short is unsuitable no matter what language it's in; (2) real language
+     * metadata (defaultAudioLanguage/defaultLanguage); (3) the script actually
+     * used in the video's title, detected locally. Either language signal alone
+     * can miss things -- metadata because most uploaders never set it, script
+     * detection because it only covers non-Latin-script languages -- but
+     * together they catch the common cases. A video is dropped if it's too
+     * short, or if either language signal says it's a different language; kept
+     * and promoted to the front if either language signal says it matches;
+     * otherwise kept as an unranked filler.
      */
-    private List<Map<String, Object>> rankByLanguage(List<Map<String, Object>> items, String lang) {
-        Map<String, String> metadataById = fetchLanguageMetadata(items);
+    private List<Map<String, Object>> rankAndFilter(List<Map<String, Object>> items, String lang) {
+        Map<String, VideoMeta> metaById = fetchVideoMetadata(items);
 
         List<Map<String, Object>> matched = new ArrayList<>();
         List<Map<String, Object>> unknown = new ArrayList<>();
         for (Map<String, Object> item : items) {
             String vid = videoId(item);
-            String metaLang = metadataById.get(vid);
+            VideoMeta meta = metaById.get(vid);
             String title = title(item);
 
+            if (meta != null && meta.durationSeconds != null && meta.durationSeconds < MIN_DURATION_SECONDS) {
+                continue; // too short -- a Short or thin clip, drop regardless of language match
+            }
+
+            String metaLang = meta != null ? meta.language : null;
             boolean metaMismatch = metaLang != null && !matches(metaLang, lang);
             boolean scriptMismatch = titleScriptMismatch(title, lang);
             if (metaMismatch || scriptMismatch) continue; // dropped -- a different language
@@ -194,8 +257,14 @@ public class YouTubeService {
         return matched;
     }
 
+    private static final class VideoMeta {
+        final String language;
+        final Integer durationSeconds;
+        VideoMeta(String language, Integer durationSeconds) { this.language = language; this.durationSeconds = durationSeconds; }
+    }
+
     @SuppressWarnings("unchecked")
-    private Map<String, String> fetchLanguageMetadata(List<Map<String, Object>> items) {
+    private Map<String, VideoMeta> fetchVideoMetadata(List<Map<String, Object>> items) {
         List<String> ids = new ArrayList<>();
         for (Map<String, Object> item : items) {
             String vid = videoId(item);
@@ -203,11 +272,11 @@ public class YouTubeService {
         }
         if (ids.isEmpty()) return Map.of();
 
-        Map<String, String> metadataById = new java.util.HashMap<>();
+        Map<String, VideoMeta> metaById = new java.util.HashMap<>();
         try {
             URI uri = UriComponentsBuilder
                     .fromHttpUrl("https://www.googleapis.com/youtube/v3/videos")
-                    .queryParam("part", "snippet")
+                    .queryParam("part", "snippet,contentDetails")
                     .queryParam("id", String.join(",", ids))
                     .queryParam("key", apiKey)
                     .build()
@@ -219,21 +288,34 @@ public class YouTubeService {
             if (!(rawItems instanceof List<?> list)) return Map.of();
             for (Object o : list) {
                 if (!(o instanceof Map<?, ?> videoMap)) continue;
-                Object snippetObj = videoMap.get("snippet");
-                if (!(snippetObj instanceof Map<?, ?> snippet)) continue;
                 Object id = videoMap.get("id");
                 if (id == null) continue;
-                String audioLang = str(snippet.get("defaultAudioLanguage"));
-                String defaultLang = str(snippet.get("defaultLanguage"));
-                String resolved = audioLang != null ? audioLang : defaultLang;
-                if (resolved != null) metadataById.put(id.toString(), resolved);
+
+                String resolvedLang = null;
+                Object snippetObj = videoMap.get("snippet");
+                if (snippetObj instanceof Map<?, ?> snippet) {
+                    String audioLang = str(snippet.get("defaultAudioLanguage"));
+                    String defaultLang = str(snippet.get("defaultLanguage"));
+                    resolvedLang = audioLang != null ? audioLang : defaultLang;
+                }
+
+                Integer seconds = null;
+                Object contentDetailsObj = videoMap.get("contentDetails");
+                if (contentDetailsObj instanceof Map<?, ?> contentDetails) {
+                    String iso = str(contentDetails.get("duration"));
+                    if (iso != null) {
+                        try { seconds = (int) Duration.parse(iso).getSeconds(); } catch (Exception ignore) {}
+                    }
+                }
+
+                metaById.put(id.toString(), new VideoMeta(resolvedLang, seconds));
             }
         } catch (RestClientException ignored) {
-            // Metadata is one of two signals -- script detection below still applies
-            // even when this call fails, so we don't bail out entirely here.
+            // Metadata is one signal among several -- script detection and the
+            // search-time duration bucket still apply even when this call fails.
             return Map.of();
         }
-        return metadataById;
+        return metaById;
     }
 
     private String title(Map<String, Object> item) {

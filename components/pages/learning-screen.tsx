@@ -105,6 +105,7 @@ export default function LearningScreen({ onNavigate, learningState, setLearningS
               goalTitle: selectedGoalTitle,
               moduleTitle: selectedModule.title,
               moduleId: selectedModule.id,
+              duration: selectedModule.duration,
               languages,
             })
           })
